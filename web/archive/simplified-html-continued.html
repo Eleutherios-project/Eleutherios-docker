@@ -1,0 +1,92 @@
+return data.entity + ' is a key influencer in the network (influence score: ' + 
+                           data.influence_score.toFixed(2) + ')';
+                
+                default:
+                    return 'Pattern involves: ' + JSON.stringify(data);
+            }
+        }
+        
+        // Get confidence class based on value
+        function getConfidenceClass(confidence) {
+            if (confidence >= 0.7) return 'high';
+            if (confidence >= 0.4) return 'medium';
+            return 'low';
+        }
+        
+        // Get confidence text based on value
+        function getConfidenceText(confidence) {
+            var percent = Math.round(confidence * 100);
+            if (confidence >= 0.7) return 'High Confidence (' + percent + '%)';
+            if (confidence >= 0.4) return 'Medium Confidence (' + percent + '%)';
+            return 'Low Confidence (' + percent + '%)';
+        }
+        
+        // Get color for trust score
+        function getTrustColor(score) {
+            // Create a cyberpunk color gradient
+            if (score >= 0.8) return 'var(--neon-green)';
+            if (score >= 0.6) return 'var(--neon-blue)';
+            if (score >= 0.4) return 'var(--accent-color)';
+            if (score >= 0.2) return 'var(--neon-purple)';
+            return 'var(--neon-pink)';
+        }
+        
+        // Render user preferences
+        function renderPreferences() {
+            var html = '';
+            var preferencesList = document.getElementById('preferences-list');
+            preferencesList.innerHTML = '';
+            
+            for (var i = 0; i < userPreferences.length; i++) {
+                var pref = userPreferences[i];
+                
+                // Create preference item
+                var preferenceItem = document.createElement('div');
+                preferenceItem.className = 'preference-item';
+                
+                // Create source input
+                var sourceInput = document.createElement('input');
+                sourceInput.type = 'text';
+                sourceInput.className = 'preference-source';
+                sourceInput.value = pref.source;
+                sourceInput.readOnly = true;
+                preferenceItem.appendChild(sourceInput);
+                
+                // Create score input
+                var scoreInput = document.createElement('input');
+                scoreInput.type = 'number';
+                scoreInput.className = 'preference-score';
+                scoreInput.value = pref.score;
+                scoreInput.readOnly = true;
+                scoreInput.min = -1;
+                scoreInput.max = 1;
+                scoreInput.step = 0.1;
+                preferenceItem.appendChild(scoreInput);
+                
+                // Create remove button
+                var removeButton = document.createElement('button');
+                removeButton.className = 'preference-button';
+                removeButton.textContent = 'Remove';
+                removeButton.onclick = createRemoveHandler(i);
+                preferenceItem.appendChild(removeButton);
+                
+                // Add to the list
+                preferencesList.appendChild(preferenceItem);
+            }
+        }
+        
+        // Helper function to create remove button handler with correct index
+        function createRemoveHandler(index) {
+            return function() {
+                removePreference(index);
+            };
+        }
+        
+        // Remove a preference
+        function removePreference(index) {
+            userPreferences.splice(index, 1);
+            renderPreferences();
+        }
+    </script>
+</body>
+</html>

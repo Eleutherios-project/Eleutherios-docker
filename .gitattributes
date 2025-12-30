@@ -1,0 +1,2 @@
+demo-data/*.sql.gz filter=lfs diff=lfs merge=lfs -text
+demo-data/*.cypher filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisTrustNet - Truth Network Overlay</title>
+    <style>
+        :root {
+            --primary-bg: #0a0e17;
+            --secondary-bg: #141b29;
+            --card-bg: #1c2434;
+            --border-color: #2a3a5a;
+            --accent-color: #00ccff;
+            --accent-glow: #00ccff60;
+            --accent-hover: #80e5ff;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --text-dim: #607080;
+            --danger-color: #ff3860;
+            --success-color: #00e676;
+            --warning-color: #ffdd57;
+            --neon-purple: #c252e1;
+            --neon-pink: #ff1767;
+            --neon-blue: #00ccff;
+            --neon-green: #00ffa3;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+            background-color: var(--primary-bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+            background-image: 
+                radial-gradient(circle at 10% 20%, #1c243410 5%, transparent 10%),
+                radial-gradient(circle at 90% 80%, #1c243410 5%, transparent 10%),
+                linear-gradient(135deg, #0a0e1700 0%, #141b2930 50%, #0a0e1700 100%);
+            background-attachment: fixed;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: var(--secondary-bg);
+            padding: 1rem;
+            position: relative;
+            overflow: hidden;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 2px 15px rgba(0, 204, 255, 0.1);
+        }
+        
+        /* Cyberpunk lines effect */
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(to right, 
+                var(--neon-blue), var(--neon-purple), 
+                var(--neon-pink), var(--neon-green));
+            z-index: 10;
+            animation: scanline 8s linear infinite;
+        }
+        
+        @keyframes scanline {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent-color);
+            text-shadow: 0 0 10px var(--accent-glow);
+        }
+        
+        .logo span {
+            color: var(--text-primary);
+            text-shadow: none;
+        }
+        
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 5;
+        }
+        
+        .nav {
+            display: flex;
+        }
+        
+        .nav a {
+            color: var(--text-primary);
+            text-decoration: none;
+            margin-left: 20px;
+            padding: 8px 15px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+        }
+        
+        .nav a:hover {
+            border-color: var(--accent-color);
+            background-color: rgba(0, 204, 255, 0.1);
+            color: var(--accent-color);
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            margin-right: 5px;
+            border-radius: 4px 4px 0 0;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .tab:after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background-color: var(--accent-color);
+            transition: width 0.3s ease;
+        }
+        
+        .tab:hover:after {
+            width: 100%;
+        }
+        
+        .tab.active {
+            color: var(--accent-color);
+            border-color: var(--border-color);
+            border-bottom-color: var(--secondary-bg);
+            background-color: var(--secondary-bg);
+            margin-bottom: -1px;
+        }
+        
+        .tab.active:after {
+            width: 100%;
+            height: 2px;
+            background-color: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card:after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 30%;
+            height: 5px;
+            background: linear-gradient(to right, transparent, var(--accent-color));
+        }
+        
+        .search-container {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            background-color: var(--secondary-bg);
+            color: var(--text-primary);
+            border-radius: 4px 0 0 4px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+        
+        .search-button {
+            background-color: var(--accent-color);
+            color: #111;
+            font-weight: bold;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+        
+        .search-button:hover {
+            background-color: var(--accent-hover);
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+        
+        .response-container {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid var(--border-color);
+            position: relative;
+        }
+        
+        .response-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .response-content {
+            line-height: 1.8;
+        }
+        
+        .confidence {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .confidence.high {
+            background-color: var(--success-color);
+            color: #111;
+        }
+        
+        .confidence.medium {
+            background-color: var(--warning-color);
+            color: #111;
+        }
+        
+        .confidence.low {
+            background-color: var(--danger-color);
+            color: white;
+        }
+        
+        .sources-container {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .source-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            background-color: var(--secondary-bg);
+            border-left: 3px solid var(--accent-color);
+            transition: all 0.3s ease;
+        }
+        
+        .source-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+        
+        .source-trust {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #111;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .patterns-container {
+            margin-top: 25px;
+        }
+        
+        .pattern-item {
+            padding: 18px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            background-color: var(--secondary-bg);
+            position: relative;
+            overflow: hidden;
+            border-left: 3px solid var(--neon-purple);
+        }
+        
+        .pattern-item:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 50%;
+            height: 3px;
+            background: linear-gradient(to right, transparent, var(--neon-purple));
+        }
+        
+        .pattern-type {
+            font-weight: bold;
+            color: var(--neon-purple);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+        }
+        
+        .user-preferences {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .preference-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .preference-source {
+            flex: 1;
+            padding: 12px;
+            background-color: var(--secondary-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px 0 0 4px;
+            color: var(--text-primary);
+        }
+        
+        .preference-score {
+            width: 100px;
+            padding: 12px;
+            background-color: var(--secondary-bg);
+            border: 1px solid var(--border-color);
+            border-left: none;
+            color: var(--text-primary);
+        }
+        
+        .preference-button {
+            background-color: var(--accent-color);
+            color: #111;
+            border: none;
+            padding: 12px 15px;
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+        
+        .preference-button:hover {
+            background-color: var(--accent-hover);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+        
+        .add-preference {
+            background-color: var(--neon-green);
+        }
+        
+        .add-preference:hover {
+            background-color: #40ffc0;
+            box-shadow: 0 0 10px rgba(0, 255, 163, 0.5);
+        }
+        
+        .loading {
+            display: none;
+            margin: 20px auto;
+            text-align: center;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 3px solid transparent;
+            border-top-color: var(--accent-color);
+            border-right-color: var(--neon-purple);
+            border-bottom-color: var(--neon-pink);
+            border-left-color: var(--neon-green);
+            border-radius: 50%;
+            animation: spin 1.5s linear infinite;
+            box-shadow: 0 0 15px rgba(0, 204, 255, 0.3);
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 15px;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        
+        .options {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+        }
+        
+        /* Custom checkbox */
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .checkbox-container input {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+            height: 0;
+            width: 0;
+        }
+        
+        .checkmark {
+            position: relative;
+            height: 20px;
+            width: 20px;
+            background-color: var(--secondary-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            margin-right: 10px;
+        }
+        
+        .checkbox-container:hover input ~ .checkmark {
+            border-color: var(--accent-color);
+        }
+        
+        .checkbox-container input:checked ~ .checkmark {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        
+        .checkmark:after {
+            content: "";
+            position: absolute;
+            display: none;
+        }
+        
+        .checkbox-container input:checked ~ .checkmark:after {
+            display: block;
+        }
+        
+        .checkbox-container .checkmark:after {
+            left: 7px;
+            top: 3px;
+            width: 5px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+        
+        footer {
+            background-color: var(--secondary-bg);
+            color: var(--text-dim);
+            text-align: center;
+            padding: 1.5rem;
+            margin-top: 2rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            position: relative;
+        }
+        
+        footer:before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(to right, 
+                var(--neon-blue), var(--neon-purple), 
+                var(--neon-pink), var(--neon-green));
+        }
+        
+        h2, h3 {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+        
+        h2:after, h3:after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 40%;
+            height: 2px;
+            background-color: var(--accent-color);
+        }
+        
+        /* Add some glitch effect to titles */
+        .glitch-container {
+            position: relative;
+        }
+        
+        .glitch-text {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .glitch-text:before, .glitch-text:after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.8;
+        }
+        
+        .glitch-text:before {
+            left: 2px;
+            text-shadow: -1px 0 var(--neon-pink);
+            clip: rect(0, 900px, 0, 0);
+            animation: glitch-anim-1 3s infinite linear alternate-reverse;
+        }
+        
+        .glitch-text:after {
+            left: -2px;
+            text-shadow: 1px 0 var(--neon-blue);
+            clip: rect(0, 900px, 0, 0);
+            animation: glitch-anim-2 2s infinite linear alternate-reverse;
+        }
+        
+        @keyframes glitch-anim-1 {
+            0% { clip: rect(random(100)px, 9999px, random(100)px, 0); }
+            5% { clip: rect(random(100)px, 9999px, random(100)px, 0); }
+            10% { clip: rect(random(100)px, 9999px, random(100)px, 0); }
+            15% { clip: rect(0, 0, 0, 0); }
+            100% { clip: rect(0, 0, 0, 0); }
+        }
+        
+        @keyframes glitch-anim-2 {
+            0% { clip: rect(random(100)px, 9999px, random(100)px, 0); }
+            5% { clip: rect(random(100)px, 9999px, random(100)px, 0); }
+            10% { clip: rect(random(100)px, 9999px, random(100)px, 0); }
+            15% { clip: rect(0, 0, 0, 0); }
+            100% { clip: rect(0, 0, 0, 0); }
+        }
+        
+        /* Responsive styles */
+        @media (max-width: 768px) {
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .tab {
+                border-radius: 0;
+                margin-right: 0;
+                margin-bottom: 5px;
+            }
+            
+            .search-container {
+                flex-direction: column;
+            }
+            
+            .search-input {
+                border-radius: 4px;
+                margin-bottom: 10px;
+            }
+            
+            .search-button {
+                border-radius: 4px;
+            }
+            
+            .preference-item {
+                flex-direction: column;
+            }
+            
+            .preference-source, .preference-score, .preference-button {
+                width: 100%;
+                border-radius: 4px;
+                margin-bottom: 5px;
+            }
+            
+            .header-container {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .nav {
+                margin-top: 15px;
+                justify-content: center;
+            }
+            
+            .nav a {
+                margin: 0 10px;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <div class="logo">AEGIS<span>TrustNet</span></div>
+            <nav class="nav">
+                <a href="#" onclick="showTab('search')">Search</a>
+                <a href="#" onclick="showTab('preferences')">Trust Preferences</a>
+                <a href="#" onclick="showTab('about')">About</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('search')" id="tab-search">Search</div>
+            <div class="tab" onclick="showTab('preferences')" id="tab-preferences">Trust Preferences</div>
+            <div class="tab" onclick="showTab('about')" id="tab-about">About</div>
+        </div>
+
+        <!-- Search Tab -->
+        <div class="tab-content active" id="content-search">
+            <div class="card">
+                <div class="glitch-container">
+                    <h2 class="glitch-text" data-text="Pattern-Enhanced Search">Pattern-Enhanced Search</h2>
+                </div>
+                <p>Ask a question or enter a topic to discover patterns and trusted information.</p>
+                
+                <div class="search-container">
+                    <input type="text" id="search-input" class="search-input" placeholder="What evidence connects ancient structures and advanced technology?">
+                    <button onclick="performSearch()" class="search-button">Search</button>
+                </div>
+                
+                <div class="options">
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="include-details">
+                        <span class="checkmark"></span>
+                        Show detailed analysis
+                    </label>
+                </div>
+            </div>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div class="loading-text">Analyzing patterns and trust networks...</div>
+            </div>
+            
+            <div id="response-area">
+                <!-- Search results will appear here -->
+            </div>
+        </div>
+
+        <!-- Preferences Tab -->
+        <div class="tab-content" id="content-preferences">
+            <div class="card">
+                <div class="glitch-container">
+                    <h2 class="glitch-text" data-text="Trust Preferences">Trust Preferences</h2>
+                </div>
+                <p>Set your trusted sources to personalize the search results.</p>
+                
+                <div class="user-info">
+                    <label for="user-id">User ID:</label>
+                    <input type="text" id="user-id" class="search-input" value="user-1" placeholder="Enter your user ID">
+                </div>
+                
+                <h3>Your Trust Preferences</h3>
+                <div class="user-preferences" id="preferences-list">
+                    <!-- User preferences will be displayed here -->
+                </div>
+                
+                <h3>Add New Preference</h3>
+                <div class="preference-item">
+                    <input type="text" class="preference-source" id="new-source" placeholder="Source name">
+                    <input type="number" class="preference-score" id="new-score" placeholder="Trust score" min="-1" max="1" step="0.1">
+                    <button class="preference-button add-preference" onclick="addPreference()">Add</button>
+                </div>
+                
+                <div class="actions" style="margin-top: 20px;">
+                    <button class="search-button" onclick="savePreferences()">Save Preferences</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- About Tab -->
+        <div class="tab-content" id="content-about">
+            <div class="card">
+                <div class="glitch-container">
+                    <h2 class="glitch-text" data-text="About AegisTrustNet">About AegisTrustNet</h2>
+                </div>
+                <p>AegisTrustNet is a Truth Network Overlay system that enhances pattern-finding with trust metrics and multi-perspective analysis.</p>
+                
+                <h3>Key Features</h3>
+                <ul>
+                    <li><strong>Trust-Based Analysis:</strong> Sources and claims are evaluated based on network trust metrics, not centralized authority.</li>
+                    <li><strong>Pattern Discovery:</strong> Identifies significant patterns, correlations, and higher-order effects in information.</li>
+                    <li><strong>Multi-Perspective Insights:</strong> Presents well-supported viewpoints without giving undue weight to fringe theories.</li>
+                    <li><strong>User Preferences:</strong> Allows you to personalize trust metrics based on your own trusted sources.</li>
+                </ul>
+                
+                <h3>How It Works</h3>
+                <p>The system analyzes relationships between sources, claims, and entities to build a trust network. When you search, it uses this network to find patterns and correlations that might not be obvious in traditional search results.</p>
+                
+                <p>Unlike systems that rely on a single authority for "truth," AegisTrustNet builds consensus based on network trust propagation and corroborating evidence.</p>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>AegisTrustNet - Truth Network Overlay System &copy; 2025</p>
+    </footer>
+
+    <script>
+        // Global variables
+        let userPreferences = [
+            { source: "Academic Research", score: 0.9 },
+            { source: "Expert Testimony", score: 0.8 },
+            { source: "Government Publications", score: 0.7 },
+            { source: "Mainstream Media", score: 0.5 },
+            { source: "Social Media", score: 0.1 }
+        ];
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show default tab
+            showTab('search');
+            
+            // Render initial preferences
+            renderPreferences();
+            
+            // Add enter key listener for search
+            document.getElementById('search-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    performSearch();
+                }
+            });
+        });
+        
+        // Tab switching function
+        function showTab(tabName) {
+            // Hide all tab contents
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Deactivate all tabs
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show the selected tab content
+            document.getElementById(`content-${tabName}`).classList.add('active');
+            
+            // Activate the selected tab
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+        
+        // Perform search function
+       function performSearch() {
+    const query = document.getElementById('search-input').value.trim();
+    if (!query) {
+        alert('Please enter a search query');
+        return;
+    }
+    
+    // Show loading indicator
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('response-area').innerHTML = '';
+    
+    // Get include details option
+    const includeDetails = document.getElementById('include-details').checked;
+    
+    // Get user ID
+    const userId = document.getElementById('user-id').value.trim() || 'anonymous';
+    
+    // Actual API call to your backend
+    fetch('http://localhost:8001/enhanced/query', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            query: query,
+            user_id: userId,
+            include_details: includeDetails
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Hide loading indicator
+        document.getElementById('loading').style.display = 'none';
+        
+        // Show real response
+        renderResponse(data);
+    })
+    .catch(error => {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('response-area').innerHTML = 
+            `<div class="response-container">Error: ${error.message}</div>`;
+    });
+}
+        
+        // Render search response
+        function renderResponse(response) {
+            if (!response) return;
+            
+            let html = `
+                <div class="response-container">
+                    <div class="response-header">
+                        <h2>Results for: "${response.query}"</h2>
+                        <span class="confidence ${getConfidenceClass(response.confidence)}">
+                            ${getConfidenceText(response.confidence)}
+                        </span>
+                    </div>
+                    
+                    <div class="response-content">
+                        ${response.answer}
+                    </div>
+                    
+                    <div class="sources-container">
+                        <h3>Top Sources</h3>
+                        <div class="sources-list">
+            `;
+            
+            // Add sources
+            if (response.sources && response.sources.length > 0) {
+                response.sources.forEach(source => {
+                    html += `
+                        <div class="source-item">
+                            <div class="source-trust" style="background-color: ${getTrustColor(source.trust_score)}">
+                                ${Math.round(source.trust_score * 10)}
+                            </div>
+                            <div class="source-text">
+                                ${source.text}
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                html += `<p>No specific sources cited.</p>`;
+            }
+            
+            html += `
+                        </div>
+                    </div>
+            `;
+            
+            // Add patterns if requested and available
+            if (response.patterns && response.patterns.length > 0) {
+                html += `
+                    <div class="patterns-container">
+                        <h3>Significant Patterns</h3>
+                        <div class="patterns-list">
+                `;
+                
+                response.patterns.forEach(pattern => {
+                    html += `
+                        <div class="pattern-item">
+                            <div class="pattern-type">${formatPatternType(pattern.type)}</div>
+                            <div class="pattern-description">
+                                ${formatPatternDescription(pattern)}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += `</div>`;
+            
+            document.getElementById('response-area').innerHTML = html;
+        }
+        
+        // Format pattern type
+        function formatPatternType(type) {
+            return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+        
+        // Format pattern description based on type
+        function formatPatternDescription(pattern) {
+            const data = pattern.data;
+            
+            switch (data.type) {
+                case 'correlation':
+                    return `${data.entity1} and ${data.entity2} frequently appear together (${data.cooccurrences} co-occurrences, lift: ${data.lift.toFixed(2)})`;
+                
+                case 'causal':
+                    return `${data.cause} may lead to ${data.effect} (confidence: ${data.confidence.toFixed(2)})`;
+                
+                case 'temporal_sequence':
+                    return `${data.first_event} tends to occur before ${data.second_event} (${data.sequence_count} sequences, confidence: ${data.temporal_confidence.toFixed(2)})`;
+                
+                case 'higher_order_effect':
+                    const intermediates = data.intermediate_factors.join(' → ');
+                    return `Chain effect: ${data.initial_cause} → ${intermediates} → ${data.final_effect}`;
+                
+                case 'influence':
+                    return `${data.entity} is a key influencer in the network (influence score: ${data.influence_score.toFixed(2)})`;
+                
+                default:
+                    return `Pattern involves: ${JSON.stringify(data)}`;
+            }
+        }
+        
+        // Get confidence class based on value
+        function getConfidenceClass(confidence) {
+            if (confidence >= 0.7) return 'high';
+            if (confidence >= 0.4) return 'medium';
+            return 'low';
+        }
+        
+        // Get confidence text based on value
+        function getConfidenceText(confidence) {
+            const percent = Math.round(confidence * 100);
+            if (confidence >= 0.7) return `High Confidence (${percent}%)`;
+            if (confidence >= 0.4) return `Medium Confidence (${percent}%)`;
+            return `Low Confidence (${percent}%)`;
+        }
+        
+        // Get color for trust score
+        function getTrustColor(score) {
+            // Create a cyberpunk color gradient
+            if (score >= 0.8) return 'var(--neon-green)';
+            if (score >= 0.6) return 'var(--neon-blue)';
+            if (score >= 0.4) return 'var(--accent-color)';
+            if (score >= 0.2) return 'var(--neon-purple)';
+            return 'var(--neon-pink)';
+        }
+        
+        // Render user preferences
+        function renderPreferences() {
+            let html = '';
+            
+            userPreferences.forEach((pref, index) => {
+                html += `
+                    <div class="preference-item">
+                        <input type="text" class="preference-source" value="${pref.source}" readonly>
+                        <input type="number" class="preference-score" value="${pref.score}" readonly min="-1" max="1" step="0.1">
+                        <button class="preference-button" onclick="removePreference(${index})">Remove</button>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('preferences-list').innerHTML = html;
+        }
+        
+        // Add a new preference
+        function addPreference() {
+            const source = document.getElementById('new-source').value.trim();
+            const scoreStr = document.getElementById('new-score').value.trim();
+            
+            if (!source) {
+                alert('Please enter a source name');
+                return;
+            }
+            
+            const score = parseFloat(scoreStr);
+            if (isNaN(score) || score < -1 || score > 1) {
+                alert('Please enter a valid trust score between -1 and 1');
+                return;
+            }
+            
+            // Add to preferences array
+            userPreferences.push({ source, score });
+            
+            // Clear inputs
+            document.getElementById('new-source').value = '';
+            document.getElementById('new-score').value = '';
+            
+            // Re-render preferences
+            renderPreferences();
+        }
+        
+        // Remove a preference
+        function removePreference(index) {
+            userPreferences.splice(index, 1);
+            renderPreferences();
+        }
+        
+        // Save preferences
+        function savePreferences() {
+            const userId = document.getElementById('user-id').value.trim();
+            
+            if (!userId) {
+                alert('Please enter a user ID');
+                return;
+            }
+            
+            // In a real implementation, you would call your API to save preferences
+            // fetch('/trust/user/preferences', {
+            //     method: 'POST',
+            //     headers: {
+            //         'Content-Type': 'application/json'
+            //     },
+            //     body: JSON.stringify({
+            //         user_id: userId,
+            //         preferences: userPreferences.map(p => ({
+            //             source: p.source,
+            //             trust_score: p.score
+            //         }))
+            //     })
+            // })
+            
+            // Show confirmation
+            alert(`Preferences saved for user ${userId}`);
+        }
+        
+        // Mock response for demo purposes
+        function getMockResponse(query, includeDetails) {
+            const mockResponse = {
+                query: query,
+                answer: `<p>Analysis of available evidence suggests several connections between ancient structures and advanced technology:</p>
+                <p>Megalithic structures like the Great Pyramid show precision engineering that would be challenging even with modern technology. The pyramid's alignment to true north with an error of just 0.05 degrees demonstrates sophisticated astronomical knowledge.</p>
+                <p>Several ancient sites exhibit evidence of precision stone cutting with perfectly straight edges and right angles. The H-blocks at Puma Punku in Bolivia show complex geometrical cuts that would require advanced tools.</p>
+                <p>Ancient structures worldwide demonstrate advanced mathematical knowledge, including the use of pi, phi (golden ratio), and precise astronomical alignments that track solstices, equinoxes, and complex celestial cycles.</p>
+                <p>While mainstream archaeology attributes these achievements to traditional tools and methods developed over generations, the precision and scale of some structures continue to challenge conventional explanations.</p>`,
+                confidence: 0.78,
+                sources: [
+                    {
+                        id: "claim-1234",
+                        text: "The Great Pyramid's alignment to true north has an error of just 0.05 degrees.",
+                        trust_score: 0.85
+                    },
+                    {
+                        id: "claim-2345",
+                        text: "Puma Punku H-blocks show evidence of precision machining with complex geometrical cuts.",
+                        trust_score: 0.72
+                    },
+                    {
+                        id: "claim-3456",
+                        text: "Ancient megalithic structures incorporate mathematical constants like pi and phi in their design.",
+                        trust_score: 0.79
+                    },
+                    {
+                        id: "claim-4567",
+                        text: "Many ancient structures are aligned to track solstices, equinoxes, and other celestial events.",
+                        trust_score: 0.91
+                    }
+                ],
+                processing_time: 1.24
+            };
+            
+            // Add patterns if details requested
+            if (includeDetails) {
+                mockResponse.patterns = [
+                    {
+                        id: "pattern-1234",
+                        type: "correlation",
+                        data: {
+                            type: "correlation",
+                            entity1: "Precision Stonework",
+                            entity2: "Astronomical Alignment",
+                            cooccurrences: 12,
+                            lift: 3.5,
+                            significance: 0.85
+                        }
+                    },
+                    {
+                        id: "pattern-2345",
+                        type: "higher_order_effect",
+                        data: {
+                            type: "higher_order_effect",
+                            initial_cause: "Advanced Astronomical Knowledge",
+                            intermediate_factors: ["Precision Engineering"],
+                            final_effect: "Megalithic Construction",
+                            order: 2
+                        }
+                    },
+                    {
+                        id: "pattern-3456",
+                        type: "anomalous_claim",
+                        data: {
+                            type: "anomalous_claim",
+                            claim_text: "Ancient sites globally share specific mathematical ratios despite no known contact",
+                            trust_score: 0.68,
+                            contradiction_count: 3,
+                            anomaly_score: 2.04
+                        }
+                    }
+                ];
+                
+                mockResponse.perspectives = [
+                    {
+                        community_id: "community-1",
+                        name: "Mainstream Archaeology",
+                        description: "Conventional archaeological perspectives",
+                        key_entities: [
+                            { name: "Labor Force", trust_score: 0.85 },
+                            { name: "Stone Tools", trust_score: 0.82 },
+                            { name: "Incremental Development", trust_score: 0.79 }
+                        ]
+                    },
+                    {
+                        community_id: "community-2",
+                        name: "Alternative Archaeology",
+                        description: "Non-conventional archaeological perspectives",
+                        key_entities: [
+                            { name: "Advanced Machining", trust_score: 0.62 },
+                            { name: "Ancient Knowledge", trust_score: 0.58 },
+                            { name: "Lost Technology", trust_score: 0.53 }
+                        ]
+                    }
+                ];
+            }
+            
+            return mockResponse;
+        }
+    </script>

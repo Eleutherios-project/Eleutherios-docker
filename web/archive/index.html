@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis Insight v2.0 Beta - Knowledge Graph Interface</title>
+    
+    <!-- D3.js Library -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <!-- Main Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/graph.css">
+    <link rel="stylesheet" href="css/panel.css">
+    
+    <style>
+        /* Inline critical styles for beta (will be moved to CSS files) */
+        :root {
+            --primary-bg: #0a0e17;
+            --secondary-bg: #141b29;
+            --card-bg: #1c2434;
+            --border-color: #2a3a5a;
+            --accent-color: #00ccff;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+            background-color: var(--primary-bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Header */
+        header {
+            background-color: var(--secondary-bg);
+            padding: 1rem;
+            border-bottom: 2px solid var(--accent-color);
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: var(--accent-color);
+            text-shadow: 0 0 10px rgba(0, 204, 255, 0.6);
+        }
+        
+        .beta-badge {
+            display: inline-block;
+            background: var(--accent-color);
+            color: var(--primary-bg);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background-color: var(--secondary-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+        }
+        
+        .tab:hover {
+            background-color: rgba(0, 204, 255, 0.1);
+        }
+        
+        .tab.active {
+            color: var(--accent-color);
+            border-bottom-color: var(--accent-color);
+        }
+        
+        /* Tab Content */
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Graph Container */
+        .graph-view {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        #graph-container {
+            flex: 1;
+            background-color: var(--primary-bg);
+            position: relative;
+        }
+        
+        /* Controls */
+        .controls {
+            padding: 15px;
+            background-color: var(--secondary-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .search-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 10px 15px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px rgba(0, 204, 255, 0.3);
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            background-color: var(--accent-color);
+            color: var(--primary-bg);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background-color: #00e6ff;
+            box-shadow: 0 0 15px rgba(0, 204, 255, 0.5);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Side Panel */
+        .side-panel {
+            width: 0;
+            background-color: var(--secondary-bg);
+            border-left: 1px solid var(--border-color);
+            overflow: hidden;
+            transition: width 0.3s ease;
+        }
+        
+        .side-panel.visible {
+            width: 300px;
+        }
+        
+        /* Stats Overlay */
+        .stats-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(20, 27, 41, 0.9);
+            padding: 10px 15px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-size: 0.85rem;
+        }
+        
+        .stats-overlay .stat-row {
+            margin: 5px 0;
+        }
+        
+        .stats-overlay .stat-label {
+            color: var(--text-secondary);
+        }
+        
+        .stats-overlay .stat-value {
+            color: var(--accent-color);
+            font-weight: bold;
+        }
+        
+        /* Loading Indicator */
+        .loading {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .spinner {
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--accent-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Node selection styling */
+        .node.selected circle,
+        .node.selected rect,
+        .node.selected path {
+            stroke: #ffff00 !important;
+            stroke-width: 3 !important;
+        }
+        
+        .node.connected {
+            opacity: 1 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="logo">
+                AEGIS<span>INSIGHT</span>
+                <span class="beta-badge">v2.0 BETA</span>
+            </div>
+        </header>
+        
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" data-tab="pattern-search">Pattern Search</div>
+            <div class="tab" data-tab="graph-search">Graph Search</div>
+            <div class="tab" data-tab="data-loading">Data Loading</div>
+        </div>
+        
+        <!-- Pattern Search Tab -->
+        <div id="pattern-search" class="tab-content active">
+            <div class="controls">
+                <div class="search-container">
+                    <input type="text" 
+                           id="pattern-search-input" 
+                           class="search-input" 
+                           placeholder="Enter search query...">
+                    <button id="pattern-search-btn" class="btn">Search</button>
+                </div>
+            </div>
+            <div style="flex: 1; padding: 20px; color: var(--text-secondary);">
+                <p>Pattern search functionality (existing implementation to be integrated)</p>
+            </div>
+        </div>
+        
+        <!-- Graph Search Tab -->
+        <div id="graph-search" class="tab-content">
+            <div class="controls">
+                <div class="search-container">
+                    <input type="text" 
+                           id="graph-search-input" 
+                           class="search-input" 
+                           placeholder="Enter search query...">
+                    <button id="graph-search-btn" class="btn">Load Graph</button>
+                </div>
+            </div>
+            
+            <div class="graph-view">
+                <div id="graph-container">
+                    <!-- Stats Overlay -->
+                    <div class="stats-overlay">
+                        <div class="stat-row">
+                            <span class="stat-label">Nodes:</span>
+                            <span class="stat-value" id="stat-nodes">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Edges:</span>
+                            <span class="stat-value" id="stat-edges">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Avg Trust:</span>
+                            <span class="stat-value" id="stat-trust">0%</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading Indicator -->
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <div>Loading graph...</div>
+                    </div>
+                </div>
+                
+                <!-- Side Panel (for future implementation) -->
+                <div id="side-panel" class="side-panel">
+                    <!-- Side panel content will be rendered by SidePanel.js -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Data Loading Tab -->
+        <div id="data-loading" class="tab-content">
+            <div style="padding: 20px;">
+                <h2>Data Loading</h2>
+                <p style="color: var(--text-secondary); margin-top: 10px;">
+                    Data loading wizard (existing implementation to be integrated)
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Application Script (ES6 Module) -->
+    <script type="module">
+        import { CONFIG } from './js/config.js';
+        import { GraphRenderer } from './js/graph/GraphRenderer.js';
+        import { SearchSync } from './js/search/SearchSync.js';
+        import { SidePanel } from './js/panels/SidePanel.js';
+        
+        console.log('Aegis Insight v2.0 Beta initializing...');
+        console.log('Config loaded:', CONFIG);
+        
+        // Global state
+        let graphRenderer = null;
+        let sidePanel = null;
+        const searchSync = new SearchSync();
+        
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM ready, initializing application...');
+            
+            // Initialize tab switching
+            initTabs();
+            
+            // Initialize search sync
+            initSearchSync();
+            
+            // Initialize graph renderer
+            initGraph();
+            
+            // Load sample data for testing
+            loadSampleData();
+            
+            // Make functions globally available for debugging (after initialization)
+            window.aegis = {
+                graphRenderer,
+                sidePanel,
+                searchSync,
+                config: CONFIG
+            };
+            
+            console.log('Aegis Insight v2.0 Beta ready!');
+            console.log('Access via window.aegis for debugging');
+        });
+        
+        /**
+         * Initialize tab switching
+         */
+        function initTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.dataset.tab;
+                    
+                    // Update active tab
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    // Update active content
+                    tabContents.forEach(content => {
+                        content.classList.remove('active');
+                        if (content.id === tabName) {
+                            content.classList.add('active');
+                        }
+                    });
+                    
+                    // Resize graph if switching to graph tab
+                    if (tabName === 'graph-search' && graphRenderer) {
+                        setTimeout(() => {
+                            const container = document.getElementById('graph-container');
+                            graphRenderer.width = container.clientWidth;
+                            graphRenderer.height = container.clientHeight;
+                            graphRenderer.resetView();
+                        }, 100);
+                    }
+                });
+            });
+        }
+        
+        /**
+         * Initialize search synchronization
+         */
+        function initSearchSync() {
+            const patternInput = document.getElementById('pattern-search-input');
+            const patternButton = document.getElementById('pattern-search-btn');
+            const graphInput = document.getElementById('graph-search-input');
+            const graphButton = document.getElementById('graph-search-btn');
+            
+            searchSync.register('pattern-search', patternInput, patternButton);
+            searchSync.register('graph-search', graphInput, graphButton);
+            
+            console.log('Search sync initialized');
+        }
+        
+        /**
+         * Initialize graph renderer and side panel
+         */
+        function initGraph() {
+            try {
+                graphRenderer = new GraphRenderer('#graph-container');
+                console.log('Graph renderer initialized');
+                
+                // Wait a tick to ensure DOM is fully ready
+                setTimeout(() => {
+                    try {
+                        // Initialize side panel
+                        sidePanel = new SidePanel('#side-panel', graphRenderer);
+                        
+                        // Register node click handler to show side panel
+                        graphRenderer.onNodeClick((node) => {
+                            console.log('Node clicked:', node);
+                            if (sidePanel) {
+                                sidePanel.show(node);
+                            }
+                        });
+                        
+                        console.log('Side panel initialized');
+                    } catch (error) {
+                        console.error('Failed to initialize side panel:', error);
+                    }
+                }, 0);
+                
+            } catch (error) {
+                console.error('Failed to initialize graph:', error);
+            }
+        }
+        
+        /**
+         * Load sample data for testing
+         */
+        function loadSampleData() {
+            const searchButton = document.getElementById('graph-search-btn');
+            
+            searchButton.addEventListener('click', async () => {
+                const query = searchSync.getQuery();
+                
+                if (!query) {
+                    alert('Please enter a search query');
+                    return;
+                }
+                
+                console.log('Loading graph for query:', query);
+                showLoading(true);
+                
+                try {
+                    // Call API
+                    const response = await fetch(
+                        `${CONFIG.API_URL}/graph/query/${encodeURIComponent(query)}?max_nodes=50&min_trust=0.0`,
+                        {
+                            method: 'GET',
+                            headers: { 'Accept': 'application/json' }
+                        }
+                    );
+                    
+                    if (!response.ok) {
+                        throw new Error(`API error: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Graph data received:', data);
+                    console.log('Number of nodes:', data.nodes ? data.nodes.length : 0);
+                    console.log('Number of edges:', data.edges ? data.edges.length : 0);
+                    console.log('First node:', data.nodes ? data.nodes[0] : 'none');
+
+                    // Render graph
+                    console.log('About to render graph...');
+                    graphRenderer.render(data);
+                    console.log('Graph render complete');
+
+                    // Update stats
+                    updateStats(graphRenderer.getStats());
+                    
+                } catch (error) {
+                    console.error('Error loading graph:', error);
+                    alert(`Error loading graph: ${error.message}`);
+                } finally {
+                    showLoading(false);
+                }
+            });
+        }
+        
+        /**
+         * Show/hide loading indicator
+         */
+        function showLoading(show) {
+            const loading = document.querySelector('.loading');
+            if (loading) {
+                if (show) {
+                    loading.classList.add('active');
+                } else {
+                    loading.classList.remove('active');
+                }
+            }
+        }
+        
+        /**
+         * Update statistics display
+         */
+        function updateStats(stats) {
+            const statNodes = document.getElementById('stat-nodes');
+            const statEdges = document.getElementById('stat-edges');
+            const statTrust = document.getElementById('stat-trust');
+
+            if (statNodes) statNodes.textContent = stats.nodeCount;
+            if (statEdges) statEdges.textContent = stats.edgeCount;
+            if (statTrust) statTrust.textContent = Math.round(stats.avgTrust * 100) + '%';
+        }
+    </script>
+</body>
+</html>

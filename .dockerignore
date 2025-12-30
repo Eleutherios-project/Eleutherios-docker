@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+aegis_env/
+venv/
+ENV/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# macOS
+.DS_Store
+._*
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+
+# Temporary files
+temp/
+tmp/
+cache/
+*.tmp
+*.bak
+*.backup
+*.old
+
+# Documentation source (keep compiled docs)
+*.md
+!README.md
+
+# Test files
+test_*.py
+*_test.py
+tests/
+
+# Development files
+*.ipynb
+.jupyter/
+
+# Sensitive files
+*.env
+.env.*
+secrets/
+credentials/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Large data files (demo data loaded separately)
+*.dump
+*.sql
+checkpoints/
+logs/
+
+# Archive directories
+archive*/
+backups/
+
+# Screenshots and images (except web assets)
+Screenshot*.png
+
+# Office documents
+*.docx
+*.pdf
+*.xlsx
+
+# Checkpoint files
+*.json.checkpoint
+geo_reextract_checkpoint.json

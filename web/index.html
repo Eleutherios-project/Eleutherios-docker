@@ -1,0 +1,2143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis Insight v2.0 Beta - Knowledge Graph Interface</title>
+    
+    <!-- D3.js Library -->
+    <script src="js/lib/d3.v7.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Main Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/graph.css">
+    <link rel="stylesheet" href="css/panel.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="css/wizard.css">
+    <link rel="stylesheet" href="css/detection-ui.css">
+    <link rel="stylesheet" href="css/detection-timeline.css">
+    <link rel="stylesheet" href="css/calibration-panel.css">
+    <link rel="stylesheet" href="css/data-management.css">
+    <style>
+        /* Local Orbitron font for air-gapped deployment */
+        @font-face {
+            font-family: 'Orbitron';
+            src: url('fonts/Orbitron-Bold.ttf') format('truetype');
+            font-weight: bold;
+            font-style: normal;
+        }
+        /* Bright yellow */
+                #ffc107 60deg,     /* Yellow-orange */
+                #ff9800 120deg,    /* Orange */
+                #ff6b00 180deg,    /* Deep orange/fire */
+                #ff5722 240deg,    /* Red-orange */
+                #ff6b00 300deg,    /* Back to deep orange */
+                #ffeb3b 360deg     /* Back to yellow */
+            ) !important;
+            /* Create ring effect with mask */
+            -webkit-mask: radial-gradient(
+                circle,
+                transparent 45%,
+                black 45%,
+                black 65%,
+                transparent 65%
+            ) !important;
+            mask: radial-gradient(
+                circle,
+                transparent 45%,
+                black 45%,
+                black 65%,
+                transparent 65%
+            ) !important;
+        }
+
+        /* Remove any overlays/rectangles */
+
+        /* Admin padding fix */
+        #admin {
+            padding: 1.5rem !important;
+            margin: 0 auto !important;
+        }
+
+        .tab-content.active#admin {
+            overflow-y: auto !important;
+            padding: 1.5rem !important;
+        }
+
+        /* Inline critical styles for beta (will be moved to CSS files) */
+        :root {
+            --primary-bg: #0a0e17;
+            --secondary-bg: #141b29;
+            --card-bg: #1c2434;
+            --border-color: #2a3a5a;
+            --accent-color: #00ccff;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Rajdhani', 'Segoe UI', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
+            background-color: var(--primary-bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        header {
+            background-color: var(--secondary-bg);
+            padding: 1rem;
+            border-bottom: 2px solid var(--accent-color);
+        }
+
+        .logo {
+            font-family: 'Orbitron', 'Audiowide', sans-serif;
+            font-size: 1.8rem;
+            font-weight: bold;
+            letter-spacing: 8px;
+            color: var(--accent-color);
+            text-shadow: 0 0 10px rgba(0, 204, 255, 0.6);
+        }
+        .logo-enso {
+            height: 1.08em;
+            width: auto;
+            vertical-align: middle;
+            margin: -4px 0 0 -5px;
+            filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.6));
+        }
+
+        .beta-badge {
+            display: inline-block;
+            background: var(--accent-color);
+            color: var(--primary-bg);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background-color: var(--secondary-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+        }
+
+        .tab:hover {
+            background-color: rgba(0, 204, 255, 0.1);
+        }
+
+        .tab.active {
+            color: var(--accent-color);
+            border-bottom-color: var(--accent-color);
+        }
+
+        /* Tab Content */
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Fix admin tab padding issue */
+        .tab-content.active#admin {
+        padding: 1.5rem !important;
+        margin: 0 auto !important;
+        width: 100% !important;
+    }
+
+        /* Let admin tab handle its own padding */
+        #admin {
+        padding: 1.5rem !important;
+        margin: 0 auto !important;
+        width: 100% !important;
+    }
+
+        /* Graph Container */
+        .graph-view {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        #graph-container {
+            flex: 1;
+            background-color: var(--primary-bg);
+            position: relative;
+        }
+
+        /* Controls */
+        .controls {
+            padding: 15px;
+            background-color: var(--secondary-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .search-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 10px 15px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px rgba(0, 204, 255, 0.3);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background-color: var(--accent-color);
+            color: var(--primary-bg);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background-color: #00e6ff;
+            box-shadow: 0 0 15px rgba(0, 204, 255, 0.5);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Side Panel */
+        .side-panel {
+            width: 0;
+            background-color: var(--secondary-bg);
+            border-left: 1px solid var(--border-color);
+            overflow: hidden;
+            transition: width 0.3s ease;
+        }
+
+        .side-panel.visible {
+            width: 300px;
+        }
+
+        /* Stats Overlay */
+        .stats-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(20, 27, 41, 0.9);
+            padding: 10px 15px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-size: 0.85rem;
+        }
+
+        .stats-overlay .stat-row {
+            margin: 5px 0;
+        }
+
+        .stats-overlay .stat-label {
+            color: var(--text-secondary);
+        }
+
+        .stats-overlay .stat-value {
+            color: var(--accent-color);
+            font-weight: bold;
+        }
+
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Node selection styling */
+        .node.selected circle,
+        .node.selected rect,
+        .node.selected path {
+            stroke: #ffff00 !important;
+            stroke-width: 3 !important;
+        }
+
+        .node.connected {
+            opacity: 1 !important;
+        }
+        /* ============================================
+           PATTERN SEARCH RESULTS STYLES
+           ============================================ */
+        .pattern-results {
+            padding: 20px;
+            max-width: none;
+            margin: 20px auto;
+        }
+
+        .result-header {
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .query-text {
+            font-size: 1.1em;
+            color: var(--text-primary);
+            margin: 10px 0;
+        }
+
+        .stats {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        .synthesis-section {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .synthesis-content {
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+
+        .synthesis-content h5 {
+            color: var(--accent-color);
+            margin-top: 15px;
+            margin-bottom: 10px;
+        }
+
+        .synthesis-content p {
+            margin-bottom: 12px;
+        }
+
+        .synthesis-content ul {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        .synthesis-content li {
+            margin-bottom: 8px;
+        }
+
+        .claims-section {
+            margin-top: 30px;
+        }
+
+        .claims-section h4 {
+            color: var(--text-primary);
+            margin-bottom: 20px;
+        }
+
+        .claims-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .claim-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            transition: box-shadow 0.2s;
+        }
+
+        .claim-card:hover {
+            box-shadow: 0 2px 8px rgba(0, 204, 255, 0.3);
+        }
+
+        .claim-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .claim-type {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            color: white;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .claim-metrics {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+        }
+
+        .claim-text {
+            margin: 10px 0;
+            line-height: 1.5;
+            color: var(--text-primary);
+        }
+
+        .claim-entities {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin: 8px 0;
+        }
+
+        .claim-footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85em;
+            color: var(--text-secondary);
+        }
+
+        #pattern-search-results .error {
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid #f44336;
+            border-radius: 8px;
+            padding: 20px;
+            color: #f44336;
+            margin: 20px;
+        }
+
+        .synthesis-error {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            color: #ffc107;
+            margin: 20px 0;
+        }
+
+    /* ========================================
+       ADMIN UI FIXES - Auto-patched
+       ======================================== */
+
+    /* Admin header fix */
+    .admin-header h1 {
+        font-size: 1.5rem !important;
+        color: #ffffff !important;
+        font-weight: 600;
+    }
+
+    /* Detector status colors */
+    .detector-card.ready {
+        border-color: #4CAF50 !important;
+    }
+
+    .detector-card.needs-setup {
+        border-color: #FF9800 !important;
+    }
+
+    /* ======================================== */
+
+    /* Dark theme scrollbar */
+    ::-webkit-scrollbar {
+        width: 12px;
+        height: 12px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #0a0e17;
+        border-left: 1px solid #2a3a5a;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #2a3a5a;
+        border-radius: 6px;
+        border: 2px solid #0a0e17;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #3a4a6a;
+    }
+
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: #2a3a5a #0a0e17;
+    }
+
+    /* Ensure admin uses full width */
+    .tab-content.active#admin {
+        padding: 1.5rem !important;
+        margin: 0 auto !important;
+        width: 100% !important;
+    }
+
+    .tab-content {
+        overflow-y: auto !important;
+        height: 100% !important;
+    }
+
+    /* Remove ALL pseudo-elements and overlays */
+
+    .btn:hover,
+    .setup-detector:hover {
+        opacity: 0.9;
+    }
+
+    /* ========================================== */
+
+/* ============================================================================
+   ============================================================================ */
+
+/* Remove any pseudo-elements that might create overlays */
+
+/* Admin tab padding and scroll */
+#admin {
+    padding: 1.5rem;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.tab-content.active#admin {
+    display: block;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+
+/* ============================================================================
+   ============================================================================ */
+
+/* Remove any pseudo-elements that create overlays */
+
+/* Admin panel - FULL WIDTH, no squishing */
+#admin {
+    padding: 1.5rem;
+    width: 100%;
+    max-width: none;  /* Remove width restriction! */
+}
+
+.tab-content.active#admin {
+    display: block;
+    overflow-y: auto;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: none;  /* Remove width restriction! */
+}
+
+/* ============================================================================
+   ============================================================================ */
+
+/* Remove pseudo-elements */
+
+/* Admin panel - full width */
+#admin {
+    padding: 1.5rem;
+    width: 100%;
+}
+
+.tab-content.active#admin {
+    display: block;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+
+/* ============================================================================
+   ============================================================================ */
+
+/* Secondary text - can wrap but wider */
+
+/* Admin panel - full width */
+#admin {
+    padding: 1.5rem;
+    width: 100%;
+    max-width: none;
+}
+
+.tab-content.active#admin {
+    display: block;
+    overflow-y: auto;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: none;
+}
+
+/* ============================================================================
+   ============================================================================ */
+
+/* Spin animation */
+
+#admin {
+    padding: 1.5rem;
+    width: 100%;
+    max-width: none;
+}
+
+.tab-content.active#admin {
+    display: block;
+    overflow-y: auto;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: none;
+}
+
+/* ============================================================================
+   SPINNER - INTENSE Fire Glow (Actually Visible!)
+   ============================================================================ */
+
+
+@keyframes justSpinnerSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Intense pulsing fire glow */
+@keyframes intenseFireGlow {
+    0%, 100% {
+        box-shadow:
+            0 0 30px rgba(255, 69, 0, 1),
+            0 0 60px rgba(255, 140, 0, 0.8),
+            0 0 90px rgba(255, 87, 34, 0.6),
+            0 0 120px rgba(255, 50, 0, 0.4);
+        filter: brightness(1);
+    }
+    50% {
+        box-shadow:
+            0 0 40px rgba(255, 69, 0, 1),        /* Even brighter */
+            0 0 80px rgba(255, 140, 0, 1),
+            0 0 120px rgba(255, 87, 34, 0.8),
+            0 0 160px rgba(255, 50, 0, 0.6);
+        filter: brightness(1.2);                  /* Brighten the whole thing */
+    }
+}
+
+.spinner::before,
+.spinner::after {
+    content: none !important;
+    display: none !important;
+}
+
+.loading,
+#pattern-search .loading,
+#pattern-search-results .loading {
+    display: block;
+    text-align: center;
+    padding: 3rem 2rem;
+    animation: none !important;
+    transform: none !important;
+    border: none !important;
+    background: transparent !important;
+    max-width: 600px !important;
+    width: auto !important;
+    min-width: 400px !important;
+}
+
+#pattern-search .loading {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) !important;
+    z-index: 1000;
+    background: transparent !important;
+    border: none !important;
+}
+
+.loading-text {
+    color: #a0a0a0;
+    margin-top: 1rem;
+    animation: none !important;
+    white-space: nowrap !important;
+}
+
+.loading div {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+#admin {
+    padding: 1.5rem;
+    width: 100%;
+    max-width: none;
+}
+
+.tab-content.active#admin {
+    display: block;
+    overflow-y: auto;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: none;
+}
+    </style>
+
+    <script>
+    // ========================================
+    // ADMIN PANEL INITIALIZATION -
+    // ========================================
+    
+    let adminInitialized = false;
+    let statusInterval = null;
+
+    function initAdmin() {
+        if (adminInitialized) return;
+        adminInitialized = true;
+        console.log('🔧 Initializing admin panel...');
+        
+        loadStatus();
+        setupButtons();
+        statusInterval = setInterval(loadStatus, 30000);
+    }
+
+    async function loadStatus() {
+        console.log('📊 Fetching system status...');
+        try {
+            const response = await fetch('/api/system/status');
+            const data = await response.json();
+            console.log('✓ Status loaded:', data);
+            
+            updateElement('total-claims', (data.claims_count || 0).toLocaleString());
+            updateElement('total-citations', (data.citations_count || 0).toLocaleString());
+            updateElement('total-embeddings', (data.embeddings_count || 0).toLocaleString());
+            updateElement('geo-claims', (data.geographic_claims_count || 0).toLocaleString());
+            
+            updateDetector('suppression', data.detectors_ready?.suppression);
+            updateDetector('coordination', data.detectors_ready?.coordination);
+            updateDetector('anomaly', data.detectors_ready?.anomaly);
+            
+            updateSystemInfo(data);
+        } catch (error) {
+            console.error('✗ Status fetch failed:', error);
+        }
+    }
+
+    function updateElement(id, text) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    }
+
+    function updateDetector(name, status) {
+        if (!status) return;
+        
+        const badge = document.getElementById(`${name}-status`);
+        const card = document.getElementById(`${name}-detector`);
+        const requirements = document.getElementById(`${name}-requirements`);
+        const actions = document.getElementById(`${name}-actions`);
+        
+        if (!badge || !card || !requirements || !actions) return;
+        
+        const jobNames = {
+            'build_citations': 'Build Citation Network (~15-40 min)',
+            'generate_embeddings': 'Generate Embeddings (~10-15 min)',
+            'build_temporal_index': 'Build Temporal Index (~5-10 min)',
+            'build_geographic_index': 'Build Geographic Index (~5-10 min)'
+        };
+        
+        if (status.ready) {
+            badge.textContent = '✓ Ready';
+            badge.className = 'status-badge ready';
+            card.classList.add('ready');
+            card.classList.remove('needs-setup');
+            requirements.innerHTML = '<div class="requirement-item"><span class="requirement-status">✓</span><span class="requirement-text">All requirements met</span></div>';
+            actions.style.display = 'none';
+        } else {
+            badge.textContent = '⚠️ Needs Setup';
+            badge.className = 'status-badge needs-setup';
+            card.classList.add('needs-setup');
+            card.classList.remove('ready');
+            
+            requirements.innerHTML = (status.missing || []).map(job => 
+                `<div class="requirement-item">
+                    <span class="requirement-status">⏳</span>
+                    <span class="requirement-text">${jobNames[job] || job}</span>
+                </div>`
+            ).join('');
+            
+            actions.style.display = 'flex';
+        }
+    }
+
+    function updateSystemInfo(data) {
+        const neo4jEl = document.getElementById('neo4j-status');
+        if (neo4jEl) {
+            neo4jEl.textContent = data.neo4j_connected ? '✓ Connected' : '✗ Disconnected';
+            neo4jEl.className = 'info-value ' + (data.neo4j_connected ? 'online' : 'offline');
+        }
+        
+        updateElement('db-size', data.db_size || 'Unknown');
+        
+        const ollamaEl = document.getElementById('ollama-status');
+        if (ollamaEl) {
+            ollamaEl.textContent = data.ollama_available ? '✓ Available' : '✗ Unavailable';
+            ollamaEl.className = 'info-value ' + (data.ollama_available ? 'online' : 'offline');
+        }
+        
+        const lastIngestionEl = document.getElementById('last-ingestion');
+        if (lastIngestionEl) {
+            lastIngestionEl.textContent = data.last_ingestion ? 
+                new Date(data.last_ingestion).toLocaleString() : 'Never';
+        }
+    }
+
+    function setupButtons() {
+        // Admin tab buttons - simplified for MVP
+        // Detection setup is now automatic during import
+        console.log('Admin buttons initialized');
+    }
+
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            if (this.dataset.tab === 'admin') {
+                console.log('📋 Admin tab activated');
+                setTimeout(initAdmin, 10);
+            }
+        });
+    });
+
+    if (document.getElementById('admin')?.classList.contains('active')) {
+        console.log('📋 Admin tab already active');
+        initAdmin();  // Init immediately
+        setTimeout(initAdmin, 10);
+    }
+
+    console.log('✓ Admin init loaded');
+    // ========================================
+    // ========================================
+
+    // DATA LOADING WIZARD INITIALIZATION
+    // ========================================
+
+
+    // Global wizard instance
+    let dataWizard = null;
+
+    /**
+     * Initialize Data Loading Wizard
+     * Called when data-loading tab is clicked
+     */
+    function initDataWizard() {
+        console.log('📦 Initializing Data Loading Wizard...');
+
+        if (!dataWizard) {
+            try {
+                dataWizard = new DataWizard('data-wizard-container');
+                console.log('✅ Data Loading Wizard initialized successfully');
+            } catch (error) {
+                console.error('❌ Failed to initialize Data Loading Wizard:', error);
+
+                // Show error in the UI
+                const container = document.getElementById('data-wizard-container');
+                if (container) {
+                    container.innerHTML = `
+                        <div style="padding: 40px; text-align: center; color: #ff4444;">
+                            <h2>⚠️ Failed to Load Data Wizard</h2>
+                            <p style="margin-top: 20px; color: var(--text-secondary);">
+                                ${error.message}
+                            </p>
+                            <p style="margin-top: 10px; color: var(--text-secondary); font-size: 0.9em;">
+                                Check browser console for details.
+                            </p>
+                        </div>
+                    `;
+                }
+            }
+        }
+    }
+
+    // Add wizard initialization to tab click handler
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            const tabName = this.dataset.tab;
+
+            // Initialize wizard when data-loading tab is clicked
+            if (tabName === 'data-loading') {
+                console.log('📦 Data Loading tab activated');
+                setTimeout(initDataWizard, 10);
+            }
+
+            // Keep existing admin tab initialization
+            if (tabName === 'admin') {
+                console.log('📋 Admin tab activated');
+                setTimeout(initAdmin, 10);
+            }
+        });
+    });
+
+    // If data-loading tab is already active on page load, init immediately
+    if (document.getElementById('data-loading')?.classList.contains('active')) {
+        console.log('📦 Data Loading tab already active on load');
+        setTimeout(initDataWizard, 100);
+    }
+
+    console.log('✓ Data Loading Wizard init loaded');
+
+
+    // AGGRESSIVE INIT - Force load immediately
+    setTimeout(function() {
+        console.log('🚀 FORCE INIT: Checking for admin tab...');
+        
+        const adminTab = document.getElementById('admin');
+        if (adminTab && (adminTab.classList.contains('active') || true)) {
+            console.log('🚀 FORCE INIT: Loading status NOW...');
+            
+            if (typeof loadStatus === 'function') {
+                loadStatus();
+            } else if (typeof initAdmin === 'function') {
+                initAdmin();
+            } else {
+                // Manual fallback
+                console.log('🚀 FORCE INIT: Using fallback loader...');
+                forceLoadNow();
+            }
+        }
+    }, 500);
+    
+    // Fallback loader
+    function forceLoadNow() {
+        fetch('/api/system/status')
+            .then(r => r.json())
+            .then(data => {
+                console.log('✓ FORCE: Data loaded', data);
+                const el1 = document.getElementById('total-claims');
+                const el2 = document.getElementById('total-citations');
+                const el3 = document.getElementById('total-embeddings');
+                const el4 = document.getElementById('geo-claims');
+                
+                if (el1) el1.textContent = (data.claims_count || 0).toLocaleString();
+                if (el2) el2.textContent = (data.citations_count || 0).toLocaleString();
+                if (el3) el3.textContent = (data.embeddings_count || 0).toLocaleString();
+                if (el4) el4.textContent = (data.geographic_claims_count || 0).toLocaleString();
+                
+                console.log('✓ FORCE: UI updated');
+            })
+            .catch(err => console.error('✗ FORCE: Failed', err));
+    }
+
+    </script>
+    <!-- Detection Controls Initialization -->
+    <script type="module">
+        import { DetectionControls } from './js/detection/DetectionControls.js';
+        import { DetectionHighlighter } from './js/graph/DetectionHighlighter.js';
+
+
+        // Wait for DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize detection controls
+            const detectionPanel = document.getElementById('detection-panel');
+            if (detectionPanel) {
+                try {
+                    const detectionControls = new DetectionControls({
+                        containerId: '#detection-panel',
+                        apiBaseUrl: 'http://localhost:8001',
+                        onDetectionComplete: (results, mode) => {
+                            console.log('Detection complete:', mode, results);
+                            // For standard mode, use existing rich display
+                            if (mode === 'standard' && window.displayPatternResults) {
+                                window.displayPatternResults(results);
+                            }
+                            // For detection modes, apply graph highlighting
+                            if (mode !== 'standard' && window.aegis?.graphRenderer) {
+                                if (!window.aegis.detectionHighlighter) { window.aegis.detectionHighlighter = new DetectionHighlighter(window.aegis.graphRenderer); } window.aegis.detectionHighlighter.applyHighlights(results, mode);
+                                // Also update graph filter for clustering
+                                if (window.aegis.graphFilter) { window.aegis.graphFilter.setDetectionResults(results); }
+                            }
+                        },
+                        onModeChange: (mode) => {
+                            console.log('Mode changed to:', mode);
+                        }
+                    });
+                    detectionControls.initialize();
+                    console.log('✓ Detection controls initialized');
+
+                    // Make accessible globally for debugging
+                    window.detectionControls = detectionControls;
+                } catch (error) {
+                    console.error('Failed to initialize detection controls:', error);
+                    // Show fallback search
+                    const legacy = document.getElementById('legacy-search-controls');
+                    if (legacy) legacy.style.display = 'block';
+                }
+            }
+        });
+    </script>
+
+
+ 
+    <script type="module">
+        import { SearchSync } from './js/search/SearchSync.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Create global search sync instance
+            window.searchSync = new SearchSync();
+
+            // Register Graph Search input
+            const graphInput = document.getElementById('graph-search-input');
+            const graphBtn = document.getElementById('graph-search-btn');
+            if (graphInput && graphBtn) {
+                window.searchSync.register('graph', graphInput, graphBtn);
+                console.log('✓ Graph search registered with SearchSync');
+            }
+
+            // Wait for DetectionControls to initialize, then register its input
+            setTimeout(() => {
+                const detectionInput = document.getElementById('detection-search-input');
+                const detectionBtn = document.getElementById('detection-search-btn');
+                if (detectionInput && detectionBtn) {
+                    window.searchSync.register('detection', detectionInput, detectionBtn);
+                    console.log('✓ Detection search registered with SearchSync');
+                }
+            }, 500);
+
+            // Sync when switching tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabName = this.dataset.tab;
+                    const currentQuery = window.searchSync?.getQuery() || '';
+
+                    // When switching to graph-search, ensure input has the query
+                    if (tabName === 'graph-search' && currentQuery) {
+                        setTimeout(() => {
+                            const input = document.getElementById('graph-search-input');
+                            if (input && input.value !== currentQuery) {
+                                input.value = currentQuery;
+                            }
+                        }, 50);
+                    }
+
+                    // When switching to pattern-search, ensure detection input has the query
+                    if (tabName === 'pattern-search' && currentQuery) {
+                        setTimeout(() => {
+                            const input = document.getElementById('detection-search-input');
+                            if (input && input.value !== currentQuery) {
+                                input.value = currentQuery;
+                            }
+                        }, 50);
+                    }
+                });
+            });
+
+            console.log('✓ SearchSync initialized');
+
+            // Claim limit +/- handlers
+            const limitInput = document.getElementById('claim-limit-input');
+            const limitMinus = document.getElementById('claim-limit-minus');
+            const limitPlus = document.getElementById('claim-limit-plus');
+            if (limitInput && limitMinus && limitPlus) {
+                limitMinus.addEventListener('click', () => {
+                    const current = parseInt(limitInput.value) || 100;
+                    limitInput.value = Math.max(10, current - 5);
+                });
+                limitPlus.addEventListener('click', () => {
+                    const current = parseInt(limitInput.value) || 100;
+                    limitInput.value = Math.min(1000, current + 5);
+                });
+                console.log('✓ Claim limit controls initialized');
+            }
+        });
+
+    </script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="logo">
+                ELEUTHERI<img src="enso.png" alt="O" class="logo-enso">S
+                <span class="beta-badge">Aegis Insight Engine Beta v3.0</span>
+            </div>
+        </header>
+        
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" data-tab="pattern-search">Pattern Search</div>
+            <div class="tab" data-tab="graph-search">Graph Search</div>
+            <div class="tab" data-tab="data-loading">Data Loading</div>
+            <div class="tab" data-tab="admin">Admin</div>
+            <div class="tab" data-tab="calibration">Calibration</div>
+            <div class="tab" data-tab="data-management">Data Management</div>
+        </div>
+        
+
+        <!-- Pattern Search Tab -->
+        <div id="pattern-search" class="tab-content active">
+
+            <!-- Detection Controls - Sub-tab modes (Standard, Detect Suppression, etc.) -->
+            <div id="detection-panel"></div>
+
+            <!-- Fallback: Original search controls (hidden when detection panel active) -->
+            <div class="controls" id="legacy-search-controls" style="display: none;">
+                <div class="search-container">
+                    <input type="text"
+                           id="pattern-search-input"
+                           class="search-input"
+                           placeholder="Enter search query...">
+                    <button id="pattern-search-btn" class="btn">Search</button>
+                    <div class="claim-limit-control" style="display: inline-flex; align-items: center; margin-left: 10px; gap: 5px;">
+                        <button id="claim-limit-minus" class="btn-small" style="padding: 4px 8px; font-size: 14px;">-</button>
+                        <input type="number" id="claim-limit-input" value="100" min="10" max="1000" step="5" style="width: 60px; text-align: center; padding: 4px;">
+                        <button id="claim-limit-plus" class="btn-small" style="padding: 4px 8px; font-size: 14px;">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pattern Search Results Container (shared by both) -->
+            <div id="pattern-search-results" style="overflow-y: auto; height: calc(100vh - 200px); padding: 10px;"></div>
+        </div>
+        
+        <!-- Graph Search Tab -->
+        <div id="graph-search" class="tab-content">
+            <div class="controls">
+                <div class="search-container">
+                    <input type="text" 
+                           id="graph-search-input" 
+                           class="search-input" 
+                           placeholder="Enter search query...">
+                    <button id="graph-search-btn" class="btn">Load Graph</button>
+                </div>
+            </div>
+            
+            <div class="graph-view">
+                <div id="graph-container">
+                    <!-- Stats Overlay -->
+                    <div class="stats-overlay">
+                        <div class="stat-row">
+                            <span class="stat-label">Nodes:</span>
+                            <span class="stat-value" id="stat-nodes">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Edges:</span>
+                            <span class="stat-value" id="stat-edges">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Avg Trust:</span>
+                            <span class="stat-value" id="stat-trust">0%</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading Indicator -->
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <div>Loading graph...</div>
+                    </div>
+                </div>
+                
+                <!-- Side Panel (for future implementation) -->
+                <div id="side-panel" class="side-panel">
+                    <!-- Side panel content will be rendered by SidePanel.js -->
+                </div>
+            </div>
+        </div>
+        
+                <!-- Data Loading Tab -->
+        <div id="data-loading" class="tab-content">
+            <div id="data-wizard-container">
+                <!-- DataWizard component will render here -->
+            </div>
+        </div>
+            <!-- ========== ADD ADMIN TAB HERE ========== -->
+        <!-- Admin Tab -->
+        <div id="admin" class="tab-content">
+            <!-- Admin Header -->
+            <div class="admin-header">
+                <h1> System Administration</h1>
+                <p class="subtitle">System status and monitoring</p>
+            </div>
+
+            <!-- System Status Dashboard -->
+            <div class="status-dashboard">
+                <h2> Data Set Statistics</h2>
+
+                <!-- Data Overview -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📄</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="total-claims">---</div>
+                            <div class="stat-label">Total Claims</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">🔗</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="total-citations">---</div>
+                            <div class="stat-label">Citations</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon"></div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="total-embeddings">---</div>
+                            <div class="stat-label">Embeddings</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon"></div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="geo-claims">---</div>
+                            <div class="stat-label">Geographic Data</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon"></div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="total-documents">---</div>
+                            <div class="stat-label">Documents</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">👤</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="total-entities">---</div>
+                            <div class="stat-label">Entities</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detection System Status -->
+            <div class="status-dashboard">
+                <h2>🔍 Detection System</h2>
+                
+                <div class="detector-status-grid">
+                    <div class="detector-status-card ready">
+                        <span class="detector-icon">🔴</span>
+                        <div class="detector-info">
+                            <h4>Suppression Detector</h4>
+                            <p>Detects systematic suppression of high-quality research</p>
+                        </div>
+                        <span class="status-indicator">● Ready</span>
+                    </div>
+
+                    <div class="detector-status-card ready">
+                        <span class="detector-icon">🔵</span>
+                        <div class="detector-info">
+                            <h4>Coordination Detector</h4>
+                            <p>Finds manufactured consensus and synchronized messaging</p>
+                        </div>
+                        <span class="status-indicator">● Ready</span>
+                    </div>
+
+                    <div class="detector-status-card ready">
+                        <span class="detector-icon">🟣</span>
+                        <div class="detector-info">
+                            <h4>Anomaly Detector <span style="color: #ff9800; font-size: 0.7em;">(Experimental)</span></h4>
+                            <p>Identifies cross-cultural patterns and geographic clustering</p>
+                        </div>
+                        <span class="status-indicator">● Ready</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Links -->
+            <div class="status-dashboard">
+                <h2> Quick Links</h2>
+
+                <div class="quick-links-grid">
+                    <a href="#" class="quick-link-card" onclick="document.querySelector('[data-tab=\"import\"]').click(); return false;">
+                        <span class="link-icon">📥</span>
+                        <div class="link-content">
+                            <div class="link-title">Import Wizard</div>
+                            <div class="link-desc">Import PDFs and documents into the knowledge graph</div>
+                        </div>
+                    </a>
+
+                    <a href="#" class="quick-link-card" onclick="document.querySelector('[data-tab=\"data-management\"]').click(); return false;">
+                        <span class="link-icon">🗂️</span>
+                        <div class="link-content">
+                            <div class="link-title">Data Management</div>
+                            <div class="link-desc">Browse, filter, and clean up claims and sources</div>
+                        </div>
+                    </a>
+
+                    <a href="#" class="quick-link-card" onclick="document.querySelector('[data-tab=\"calibration\"]').click(); return false;">
+                        <span class="link-icon"></span>
+                        <div class="link-content">
+                            <div class="link-title">Calibration</div>
+                            <div class="link-desc">Fine-tune detection thresholds and profiles</div>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="cli-tip">
+                    <h4> Pro Tip: Large Imports</h4>
+                    <p>For importing large document collections (10+ files), use the CLI Wizard for better performance and parallelism capability:</p>
+                    <code>python aegis_import_wizard.py</code>
+                    <p class="tip-note">See <strong>README_EXTRACTION_SYSTEM.md</strong> for full CLI documentation.</p>
+                </div>
+            </div>
+
+            <!-- System Info -->
+            <div class="status-dashboard">
+                <h2> System Information</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Neo4j:</span>
+                        <span class="info-value status-ok" id="neo4j-status">● Connected</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">PostgreSQL:</span>
+                        <span class="info-value status-ok" id="postgres-status">● Connected</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Ollama:</span>
+                        <span class="info-value status-ok" id="ollama-status">● Running</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">MCP Server:</span>
+                        <span class="info-value status-ok" id="mcp-status">● Port 8100</span>
+                    </div>
+                </div>
+                <div class="version-info">
+                    <span class="version-label">Aegis Insight</span>
+                    <span class="version-number">v3.0.0-MVP</span>
+                </div>
+            </div>
+        </div>
+
+
+                <!-- Calibration Tab -->
+        <div id="calibration" class="tab-content">
+            <div id="calibration-panel-container">
+                <!-- CalibrationPanel component renders here -->
+            </div>
+        </div>
+        
+        <!-- Data Management Tab -->
+        <div id="data-management" class="tab-content">
+            <div id="data-management-container">
+                <!-- DataManagement component renders here -->
+            </div>
+        </div>
+
+    </div>
+        <div class="job-progress-panel" id="job-progress-panel" style="display: none;">
+        <div class="panel-header">
+            <h3>🔄 Running Jobs</h3>
+            <button class="btn-icon" id="minimize-jobs">▼</button>
+        </div>
+
+        <div class="panel-body" id="jobs-container">
+            <!-- Jobs dynamically added here -->
+        </div>
+    </div>
+
+    <!-- Action Notifications (floats outside main container) -->
+    <div class="action-notifications" id="action-notifications">
+        <!-- Notifications appear here -->
+    </div>
+
+    <!-- Your existing scripts -->
+    <script>
+        // Existing tab switching code...
+    </script>
+
+
+
+    <!-- Main Application Script (ES6 Module) -->
+    <script type="module">
+        import { CONFIG } from './js/config.js';
+        import { GraphRenderer } from './js/graph/GraphRenderer.js';
+        import { GraphFilter } from './js/graph/GraphFilter.js';
+        import { SearchSync } from './js/search/SearchSync.js';
+        import { SidePanel } from './js/panels/SidePanel.js';
+        import { DataWizard } from './js/wizard/DataWizard.js';
+        import { initializeGraphEnhancements } from './js/graph/GraphEnhancements.js';
+        import { TimelineLayout } from './js/graph/TimelineLayout.js';
+
+        console.log('Aegis Insight Engine v2.0 initializing...');
+        console.log('Config loaded:', CONFIG);
+        
+        // Global state
+        let graphRenderer = null;
+        let graphFilter = null;
+        let sidePanel = null;
+        const searchSync = new SearchSync();
+        
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM ready, initializing application...');
+
+            // Initialize tab switching
+            initTabs();
+
+            // Initialize search sync
+            initSearchSync();
+
+            // Initialize graph renderer
+            initGraph();
+
+            // Load sample data for testing
+            loadSampleData();
+
+            // Initialize pattern search
+            // initPatternSearch(); // DISABLED - handled by DetectionControls
+
+            // ========== Initialize Detection UI (NEW) ==========
+            // DISABLED - replaced by DetectionControls
+            /*
+            console.log('Initializing Detection UI...');
+
+            window.detectionUI = new DetectionUI({
+                modeSelectorId: 'detection-mode-selector',
+                loadingStateId: 'detection-loading-state',
+                resultsContainerId: 'detection-results',
+                searchInputId: 'pattern-search-input',
+                searchButtonId: 'pattern-search-btn',
+                graphRenderer: window.graphRenderer || null,
+                onStandardSearch: async (query) => {
+                    // Call your existing pattern search logic
+                    const patternResultsDiv = document.getElementById('pattern-search-results');
+                    const patternSearchBtn = document.getElementById('pattern-search-btn');
+
+                    if (!patternResultsDiv) return;
+
+                    // Show loading state
+                    patternResultsDiv.innerHTML = `
+                        <div class="loading" style="display: block;">
+                            <div class="spinner"></div>
+                            <div class="loading-text">Searching Knowledge Graph</div>
+                            <div style="color: var(--text-secondary); margin-top: 10px; font-size: 0.9em;">
+                                Analyzing claims and generating synthesis...
+                            </div>
+                        </div>
+                    `;
+
+                    try {
+                        const response = await fetch(`${CONFIG.API_URL}/api/pattern-search`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ query: query })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+
+                        const result = await response.json();
+                        displayPatternResults(result);
+
+                    } catch (error) {
+                        console.error('Pattern search error:', error);
+                        patternResultsDiv.innerHTML = `
+                            <div class="error">
+                                <h3>❌ Search Error</h3>
+                                <p>${error.message}</p>
+                            </div>
+                        `;
+                    }
+                }
+            });
+            */
+            
+            console.log('Detection UI initialized');
+            // ========== END Detection UI ==========
+
+            // Make functions globally available for debugging (after initialization)
+            window.aegis = {
+                graphRenderer,
+                graphFilter,
+                sidePanel,
+                searchSync,
+                config: CONFIG,
+                detectionUI: window.detectionUI  // Add detectionUI to aegis object
+            };
+
+            console.log('Aegis Insight v2.0 Beta ready!');
+            console.log('Access via window.aegis for debugging');
+        });
+        
+        /**
+         * Initialize tab switching
+         */
+        function initTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.dataset.tab;
+
+                    // Update active tab
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    // Update active content
+                    tabContents.forEach(content => {
+                        content.classList.remove('active');
+                        if (content.id === tabName) {
+                            content.classList.add('active');
+                        }
+                    });
+
+                    // Resize graph if switching to graph tab
+                    if (tabName === 'graph-search' && graphRenderer) {
+                        setTimeout(() => {
+                            const container = document.getElementById('graph-container');
+                            graphRenderer.width = container.clientWidth;
+                            graphRenderer.height = container.clientHeight;
+                            graphRenderer.resetView();
+                        }, 100);
+                    }
+
+                    // Initialize data wizard if switching to data-loading tab
+                    if (tabName === 'data-loading') {
+                        console.log('📦 Data Loading tab activated');
+                        setTimeout(initDataWizard, 10);
+                    }
+                });
+            });
+        }
+
+        /**
+         * Initialize Data Loading Wizard
+         */
+        let dataWizard = null;
+
+        function initDataWizard() {
+            console.log('📦 Initializing Data Loading Wizard...');
+
+            if (!dataWizard) {
+                try {
+                    dataWizard = new DataWizard('data-wizard-container');
+                    console.log('✅ Data Loading Wizard initialized successfully');
+                } catch (error) {
+                    console.error('❌ Failed to initialize Data Loading Wizard:', error);
+
+                    const container = document.getElementById('data-wizard-container');
+                    if (container) {
+                        container.innerHTML = `
+                            <div style="padding: 40px; text-align: center; color: #ff4444;">
+                                <h2>⚠️ Failed to Load Data Wizard</h2>
+                                <p style="margin-top: 20px; color: var(--text-secondary);">
+                                    ${error.message}
+                                </p>
+                                <p style="margin-top: 10px; color: var(--text-secondary); font-size: 0.9em;">
+                                    Check browser console for details.
+                                </p>
+                            </div>
+                        `;
+                    }
+                }
+            }
+        }
+
+        /**
+         * Initialize search synchronization
+         */
+        function initSearchSync() {
+            const patternInput = document.getElementById('pattern-search-input');
+            const patternButton = document.getElementById('pattern-search-btn');
+            const graphInput = document.getElementById('graph-search-input');
+            const graphButton = document.getElementById('graph-search-btn');
+            
+            searchSync.register('pattern-search', patternInput, patternButton);
+            searchSync.register('graph-search', graphInput, graphButton);
+            
+            console.log('Search sync initialized');
+        }
+        
+        /**
+         * Initialize graph renderer and side panel
+         */
+        function initGraph() {
+            try {
+                graphRenderer = new GraphRenderer('#graph-container');
+                console.log('Graph renderer initialized');
+                
+                // Initialize graph filter
+                const graphContainer = document.getElementById('graph-container');
+                graphFilter = new GraphFilter(graphRenderer, {
+                    container: graphContainer,
+                    onFilterChange: (nodes, edges) => {
+                        console.log(`Filter applied: ${nodes.length} nodes, ${edges.length} edges`);
+                        graphRenderer.render({ nodes, edges });
+                        }
+                });
+                graphFilter.createFilterPanel();
+                console.log('Graph filter initialized');
+                
+                // Wait a tick to ensure DOM is fully ready
+                setTimeout(() => {
+                    try {
+                        // Initialize side panel
+                        sidePanel = new SidePanel('#side-panel', graphRenderer);
+                        
+                        // Register node click handler to show side panel
+                        graphRenderer.onNodeClick((node) => {
+                            console.log('Node clicked:', node);
+                            if (sidePanel) {
+                                sidePanel.show(node);
+                            }
+                        });
+                        
+                        console.log('Side panel initialized');
+                    } catch (error) {
+                        console.error('Failed to initialize side panel:', error);
+                    }
+                }, 0);
+                
+            } catch (error) {
+                console.error('Failed to initialize graph:', error);
+            }
+        }
+        
+        /**
+         * Load sample data for testing
+         */
+        function loadSampleData() {
+            const searchButton = document.getElementById('graph-search-btn');
+            
+            searchButton.addEventListener('click', async () => {
+                const query = document.getElementById('graph-search-input').value.trim();
+                
+                if (!query) {
+                    alert('Please enter a search query');
+                    return;
+                }
+                
+                console.log('Loading graph for query:', query);
+                showLoading(true);
+                
+                try {
+                    // Collect detected claim IDs to include in graph query
+                    let claimIdsParam = '';
+                    if (window.detectionControls?.lastResults && window.detectionControls?.activeMode !== 'standard') {
+                        const rawResults = window.detectionControls.lastResults;
+                        const results = rawResults.result || rawResults;
+                        if (results.affected_claims && results.affected_claims.length > 0) {
+                            const claimIds = results.affected_claims
+                                .map(c => c.graph_id || c.element_id || '')
+                                .filter(id => id)
+                                .slice(0, 50);  // Limit to 50 to avoid URL length issues
+                            if (claimIds.length > 0) {
+                                claimIdsParam = '&claim_ids=' + encodeURIComponent(claimIds.join(','));
+                                console.log(`Including ${claimIds.length} detected claim IDs in graph query`);
+                            }
+                        }
+                    }
+                    
+                    // Call API with detected claim IDs
+                    const response = await fetch(
+                        `${CONFIG.API_URL}/graph/query/${encodeURIComponent(query)}?max_nodes=200&min_trust=0.0${claimIdsParam}`,
+                        {
+                            method: 'GET',
+                            headers: { 'Accept': 'application/json' }
+                        }
+                    );
+                    
+                    if (!response.ok) {
+                        throw new Error(`API error: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Graph data received:', data);
+                    console.log('Number of nodes:', data.nodes ? data.nodes.length : 0);
+                    console.log('Number of edges:', data.edges ? data.edges.length : 0);
+                    console.log('First node:', data.nodes ? data.nodes[0] : 'none');
+
+                    // Merge any detected claims that aren't already in graph
+                    if (window.detectionControls?.lastResults && window.detectionControls?.activeMode !== 'standard') {
+                        const rawResults = window.detectionControls.lastResults;
+                        const results = rawResults.result || rawResults;
+                        if (results.affected_claims && results.affected_claims.length > 0) {
+                            const existingIds = new Set((data.nodes || []).map(n => n.id));
+                            let addedCount = 0;
+                            
+                            results.affected_claims.forEach(claim => {
+                                const claimId = claim.graph_id || `claim-${claim.element_id}`;
+                                if (!existingIds.has(claimId)) {
+                                    // Add detected claim to graph
+                                    data.nodes = data.nodes || [];
+                                    data.nodes.push({
+                                        id: claimId,
+                                        label: (claim.claim_text || '').substring(0, 50) + '...',
+                                        type: 'claim',
+                                        claim_text: claim.claim_text,
+                                        source_file: claim.source_file || '',
+                                        source: claim.source_file || '',
+                                        size: 20,
+                                        trust_score: claim.confidence || 0.5,
+                                        confidence: claim.confidence || 0.5,
+                                        metadata: {
+                                            full_text: claim.claim_text,
+                                            claim_type: claim.category || claim.claim_type || 'detected',
+                                            source_file: claim.source_file || '',
+                                            suppression_score: claim.suppression_score || 1,
+                                            detected: true
+                                        }
+                                    });
+                                    existingIds.add(claimId);
+                                    addedCount++;
+                                }
+                            });
+                            
+                            if (addedCount > 0) {
+                                console.log(`Merged ${addedCount} detected claims into graph`);
+                            }
+                        }
+                    }
+                    
+                    // Render graph
+                    console.log('About to render graph...');
+                    graphRenderer.render(data);
+                    console.log('Graph render complete');
+                    
+                    // Pass data to graph filter for filtering
+                    if (window.aegis?.graphFilter) {
+                        window.aegis.graphFilter.setData(data.nodes || [], data.edges || []);
+                    }
+                    // Initialize graph enhancements once
+                    if (!window.graphEnhancementsInitialized) {
+                        const graphContainer = document.getElementById('graph-container');
+                        const timelineLayout = new TimelineLayout(graphRenderer);
+                        graphRenderer.timelineLayout = timelineLayout;
+
+                        initializeGraphEnhancements(graphRenderer, {
+                            container: graphContainer,
+                            timelineLayout: timelineLayout,
+                            useShapes: true
+                        });
+
+                        window.graphEnhancementsInitialized = true;
+                    }
+                    // Re-apply detection highlights if we have results
+                    if (window.detectionControls?.lastResults && window.detectionControls?.activeMode !== 'standard') {
+                        const rawResults = window.detectionControls.lastResults;
+                        // Unwrap nested result (API returns { success, result: {...} })
+                        const results = rawResults.result || rawResults;
+                        const mode = window.detectionControls.activeMode;
+                        
+                        // Pass detection results to filter for clustering
+                        if (window.aegis?.graphFilter) {
+                            window.aegis.graphFilter.setDetectionResults(results);
+                        }
+                        
+                        if (window.aegis?.graphRenderer) {
+                            console.log('Re-applying detection highlights after graph load', results);
+                            if (!window.aegis.detectionHighlighter) { window.aegis.detectionHighlighter = new DetectionHighlighter(window.aegis.graphRenderer); } window.aegis.detectionHighlighter.applyHighlights(results, mode);
+                                // Also update graph filter for clustering
+                                if (window.aegis.graphFilter) { window.aegis.graphFilter.setDetectionResults(results); }
+                        }
+                    }
+
+                    // Update stats
+                    updateStats(graphRenderer.getStats());
+                    
+                } catch (error) {
+                    console.error('Error loading graph:', error);
+                    alert(`Error loading graph: ${error.message}`);
+                } finally {
+                    showLoading(false);
+                }
+            });
+        }
+        
+        /**
+         * Show/hide loading indicator
+         */
+        function showLoading(show) {
+            const loading = document.querySelector('.loading');
+            if (loading) {
+                if (show) {
+                    loading.classList.add('active');
+                } else {
+                    loading.classList.remove('active');
+                }
+            }
+        }
+        
+        /**
+         * Update statistics display
+         */
+        function updateStats(stats) {
+            const statNodes = document.getElementById('stat-nodes');
+            const statEdges = document.getElementById('stat-edges');
+            const statTrust = document.getElementById('stat-trust');
+
+            if (statNodes) statNodes.textContent = stats.nodeCount;
+            if (statEdges) statEdges.textContent = stats.edgeCount;
+            if (statTrust) statTrust.textContent = Math.round(stats.avgTrust * 100) + '%';
+        }
+        /**
+         * Initialize Pattern Search Handler
+         */
+        function initPatternSearch() {
+            const patternSearchBtn = document.getElementById('pattern-search-btn');
+            const patternSearchInput = document.getElementById('pattern-search-input');
+            const patternResultsDiv = document.getElementById('pattern-search-results');
+
+            if (!patternSearchBtn || !patternSearchInput || !patternResultsDiv) {
+                console.error('Pattern search elements not found');
+                return;
+            }
+
+            patternSearchBtn.addEventListener('click', async () => {
+                const query = patternSearchInput.value.trim();
+                if (!query) {
+                    alert('Please enter a search query');
+                    return;
+                }
+
+                // Disable button while searching
+                patternSearchBtn.disabled = true;
+                patternSearchBtn.textContent = ' Searching...';
+
+                // Show loading state with spinner
+                patternResultsDiv.innerHTML = `
+                    <div class="loading" style="display: block;">
+                        <div class="spinner"></div>
+                        <div class="loading-text">Searching Knowledge Graph</div>
+                        <div style="color: var(--text-secondary); margin-top: 10px; font-size: 0.9em;">
+                            Analyzing claims and generating synthesis...
+                        </div>
+                    </div>
+                `;
+
+                try {
+                    console.log('Pattern search query:', query);
+                    const response = await fetch(`${CONFIG.API_URL}/api/pattern-search`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ query: query })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    console.log('Pattern search result:', result);
+                    displayPatternResults(result);
+
+        } catch (error) {
+                    console.error('Pattern search error:', error);
+                    patternResultsDiv.innerHTML = `
+                        <div class="error">
+                            <h3>❌ Search Error</h3>
+                            <p>${error.message}</p>
+                        </div>
+                    `;
+                } finally {
+                    // Re-enable button
+                    patternSearchBtn.disabled = false;
+                    patternSearchBtn.textContent = 'Search';
+                }
+            });
+
+            // Enter key support
+            patternSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    patternSearchBtn.click();
+                }
+            });
+
+            console.log('✓ Pattern search handler initialized');
+        }
+
+        /**
+         * Display pattern search results
+         */
+        function displayPatternResults(result) {
+            const patternResultsDiv = document.getElementById('pattern-search-results');
+            const { query, synthesis, claims, total_claims, search_stats, synthesis_success } = result;
+
+            if (!query) {
+                patternResultsDiv.innerHTML = `<div class="error"><p>Invalid result format</p></div>`;
+                return;
+            }
+
+            let html = `
+                <div class="pattern-results">
+                    <div class="result-header">
+                        <h3> Pattern Search Results</h3>
+                        <p class="query-text">Query: <strong>${escapeHtml(query)}</strong></p>
+                        <button id="export-standard-results" class="btn-small" style="float: right; margin-top: -30px;">📄 Export</button>
+                        <p class="stats">
+                            Found ${total_claims || 0} claims
+                            (${search_stats?.neo4j_matches || 0} graph matches,
+                            ${search_stats?.embedding_matches || 0} semantic matches)
+                        </p>
+                    </div>
+            `;
+
+            // LLM Synthesis Section
+            if (synthesis_success && synthesis) {
+                html += `
+                    <div class="synthesis-section">
+                        <h4> LLM Analysis</h4>
+                        <div class="synthesis-content">
+                            ${formatSynthesis(synthesis)}
+                        </div>
+                    </div>
+                `;
+            } else if (result.synthesis_error) {
+                html += `
+                    <div class="synthesis-error">
+                        <p>⚠️ LLM synthesis unavailable: ${escapeHtml(result.synthesis_error)}</p>
+                    </div>
+                `;
+            }
+
+            // Source Claims Section
+            if (claims && claims.length > 0) {
+                html += `
+                    <div class="claims-section">
+                        <h4> Source Claims (${claims.length} results)</h4>
+                        <div class="claims-list">
+                `;
+
+                for (let i = 0; i < Math.min(claims.length, 100); i++) {
+                    const claim = claims[i];
+                    const typeColor = {
+                        'PRIMARY': '#4CAF50',
+                        'SECONDARY': '#FF9800',
+                        'META': '#E91E63',
+                        'CONTEXTUAL': '#9E9E9E'
+                    }[claim.claim_type] || '#666';
+
+                    html += `
+                        <div class="claim-card">
+                            <div class="claim-header">
+                                <span class="claim-type" style="background-color: ${typeColor}">
+                                    ${escapeHtml(claim.claim_type)}
+                                </span>
+                                <span class="claim-metrics">
+                                    Confidence: ${Math.round((claim.confidence || 0) * 100)}% |
+                                    Similarity: ${Math.round((claim.similarity || 0) * 100)}%
+                                </span>
+                            </div>
+                            <p class="claim-text">${escapeHtml(claim.text || 'No text')}</p>
+                            ${claim.entities && claim.entities.length > 0 ? `
+                                <div class="claim-entities">
+                                    Entities: ${claim.entities.map(e => escapeHtml(e)).join(', ')}
+                                </div>
+                            ` : ''}
+                            <div class="claim-footer">
+                                <span class="source">Source: ${escapeHtml(claim.source || 'Unknown')}</span>
+                                ${claim.search_source ? `
+                                    <span class="search-source">(Found via: ${escapeHtml(claim.search_source)})</span>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="synthesis-error">
+                        <p>No claims found matching your query. Try broader search terms.</p>
+                    </div>
+                `;
+            }
+
+            html += `</div>`;
+            patternResultsDiv.innerHTML = html;
+
+            // Store result for export and attach handler
+            window.lastPatternSearchResult = result;
+            const exportBtn = document.getElementById("export-standard-results");
+            if (exportBtn) {
+                exportBtn.onclick = function() {
+                    const data = {
+                        mode: "standard",
+                        query: result.query,
+                        timestamp: new Date().toISOString(),
+                        claim_ids_count: result.claims ? result.claims.length : 0,
+                        results: result
+                    };
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = "aegis-standard-" + Date.now() + ".json";
+                    a.click();
+                };
+            }
+        }
+
+        // Expose globally for DetectionControls integration
+        window.displayPatternResults = displayPatternResults;
+
+        /**
+         * Format synthesis text to HTML
+         */
+        function formatSynthesis(synthesis) {
+            if (!synthesis) return '<p>No synthesis available</p>';
+
+            const paragraphs = synthesis.split('\n\n');
+            let formatted = '';
+
+            for (const para of paragraphs) {
+                const trimmed = para.trim();
+                if (!trimmed) continue;
+
+                if (trimmed.startsWith('**') && trimmed.includes(':**')) {
+                    // Section header
+                    const headerText = trimmed.replace(/\*\*/g, '');
+                    formatted += `<h5>${escapeHtml(headerText)}</h5>`;
+                } else if (trimmed.startsWith('-')) {
+                    // Bullet list
+                    const items = para.split('\n').filter(line => line.trim().startsWith('-'));
+                    formatted += '<ul>';
+                    for (const item of items) {
+                        const text = item.substring(item.indexOf('-') + 1).trim();
+                        // Process bold text in list items
+                        const processedText = processBoldText(text);
+                        formatted += `<li>${processedText}</li>`;
+                    }
+                    formatted += '</ul>';
+                } else {
+                    // Regular paragraph - process bold text
+                    const processedText = processBoldText(trimmed);
+                    formatted += `<p>${processedText}</p>`;
+                }
+            }
+
+            return formatted || '<p>No synthesis content</p>';
+        }
+
+        /**
+         * Process markdown bold text (**text** -> <strong>text</strong>)
+         * while properly escaping HTML
+         */
+        function processBoldText(text) {
+            // Split by ** markers while preserving them
+            const parts = text.split(/(\*\*[^*]+\*\*)/g);
+
+            let result = '';
+            for (const part of parts) {
+                if (part.startsWith('**') && part.endsWith('**')) {
+                    // This is bold text - remove ** and wrap in <strong>
+                    const boldContent = part.slice(2, -2);
+                    result += `<strong>${escapeHtml(boldContent)}</strong>`;
+                } else if (part) {
+                    // Regular text - just escape
+                    result += escapeHtml(part);
+                }
+            }
+
+            return result;
+        }
+
+        /**
+         * Escape HTML to prevent XSS
+         */
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+    <!-- Calibration Panel -->
+    <script src="js/CalibrationPanel.js"></script>
+    <script>
+        // Initialize calibration panel when tab is clicked
+        let calibrationPanel = null;
+
+        function initCalibration() {
+            if (!calibrationPanel) {
+                console.log(' Initializing Calibration Panel...');
+                try {
+                    calibrationPanel = new CalibrationPanel('calibration-panel-container');
+                    console.log('✅ Calibration Panel initialized');
+                } catch (error) {
+                    console.error('❌ Failed to initialize Calibration Panel:', error);
+                }
+            }
+        }
+
+        // Add to tab click handlers
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                if (this.dataset.tab === 'calibration') {
+                    console.log(' Calibration tab activated');
+                    setTimeout(initCalibration, 10);
+                }
+            });
+        });
+
+        // If calibration tab is already active on load
+        if (document.getElementById('calibration')?.classList.contains('active')) {
+            setTimeout(initCalibration, 100);
+        }
+    </script>
+    
+    <!-- Data Management -->
+    <script type="module">
+        import { DataManagement } from './js/admin/DataManagement.js';
+        
+        let dataManagement = null;
+        
+        function initDataManagement() {
+            if (!dataManagement) {
+                console.log('📊 Initializing Data Management...');
+                try {
+                    dataManagement = new DataManagement('data-management-container');
+                    window.dataManagement = dataManagement; // Expose for onclick handlers
+                    console.log('✅ Data Management initialized');
+                } catch (error) {
+                    console.error('❌ Failed to initialize Data Management:', error);
+                }
+            }
+        }
+        
+        // Initialize when tab is clicked
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                if (this.dataset.tab === 'data-management') {
+                    setTimeout(initDataManagement, 50);
+                }
+            });
+        });
+        
+        // Check if tab is already active on load
+        if (document.getElementById('data-management')?.classList.contains('active')) {
+            initDataManagement();
+        }
+    </script>
+</body>
+</html>
+

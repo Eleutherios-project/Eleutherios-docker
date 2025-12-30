@@ -1,0 +1,74 @@
+{
+  "schema_version": "2.0",
+  "metadata": {
+    "name": "Default - Balanced",
+    "description": "General purpose detection. Balanced approach that works across domains. Use as starting point for custom profiles.",
+    "author": "aegis",
+    "created": "2025-11-30T00:00:00Z",
+    "tags": ["general", "baseline"]
+  },
+  "scoring": {
+    "mode": "goldfinger",
+    "happenstance_max": 1,
+    "coincidence_max": 2,
+    "enemy_action_base": 0.50,
+    "logarithmic_factor": 0.20,
+    "max_score": 0.95
+  },
+  "semantic_patterns": {
+    "match_mode": "semantic",
+    "match_threshold": 0.75,
+    "suppression_experiences": {
+      "include": [
+        "imprisoned", "jailed", "arrested",
+        "vilified", "smeared", "attacked",
+        "exiled", "banished", "fled",
+        "poverty", "destitute", "abandoned", "forgotten",
+        "censored", "banned", "suppressed",
+        "career destroyed", "reputation ruined",
+        "died alone", "few mourners"
+      ],
+      "exclude": []
+    },
+    "institutional_actions": {
+      "include": [
+        "charged with", "accused of", "indicted",
+        "convicted", "sentenced", "condemned",
+        "fired", "dismissed", "tenure denied",
+        "funding cut", "deplatformed"
+      ],
+      "exclude": []
+    },
+    "dismissal_language": {
+      "include": [
+        "debunked", "discredited", "conspiracy theory",
+        "misinformation", "pseudoscience", "fringe",
+        "no evidence", "baseless", "unfounded"
+      ],
+      "exclude": []
+    },
+    "suppression_of_record": {
+      "include": [
+        "rarely mentioned", "omitted from", "forgotten",
+        "ignored by", "written out of", "largely unknown"
+      ],
+      "exclude": []
+    }
+  },
+  "signal_weights": {
+    "suppression_narrative": 0.40,
+    "meta_claim_density": 0.15,
+    "network_isolation": 0.10,
+    "evidence_avoidance": 0.20,
+    "authority_mismatch": 0.15
+  },
+  "thresholds": {
+    "min_claims_for_analysis": 5,
+    "score_levels": {
+      "critical": 0.80,
+      "high": 0.60,
+      "moderate": 0.40,
+      "low": 0.20
+    }
+  }
+}

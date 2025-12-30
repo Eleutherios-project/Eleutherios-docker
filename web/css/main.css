@@ -1,0 +1,150 @@
+/**
+ * Aegis Insight v2.0 - Main Styles
+ * Core application styles
+ */
+
+/* ============================================================================
+   SPINNER - Fire Glow Effect
+   ============================================================================ */
+
+.spinner {
+    width: 72px !important;
+    height: 72px !important;
+    margin: 15px auto !important;
+    display: block !important;
+    border: none !important;
+    border-radius: 50% !important;
+    position: relative !important;
+    
+    /* Fire gradient - yellow to orange to red */
+    background: conic-gradient(
+        from 0deg,
+        #ffeb3b 0deg,      /* Bright yellow */
+        #ffc107 60deg,     /* Yellow-orange */
+        #ff9800 120deg,    /* Orange */
+        #ff6b00 180deg,    /* Deep orange/fire */
+        #ff5722 240deg,    /* Red-orange */
+        #ff6b00 300deg,    /* Back to deep orange */
+        #ffeb3b 360deg     /* Back to yellow */
+    ) !important;
+    
+    /* Ring mask - creates donut shape */
+    mask: radial-gradient(
+        circle,
+        transparent 45%,
+        black 45%,
+        black 65%,
+        transparent 65%
+    ) !important;
+    -webkit-mask: radial-gradient(
+        circle,
+        transparent 45%,
+        black 45%,
+        black 65%,
+        transparent 65%
+    ) !important;
+    
+    /* Animations: spin + fire glow pulse */
+    animation: spinnerRotate 1s linear infinite, fireGlowPulse 1.5s ease-in-out infinite !important;
+    
+    /* FIRE GLOW - Pulsing red-orange shadow */
+    box-shadow:
+        0 0 30px rgba(255, 69, 0, 1),        /* Bright red-orange inner */
+        0 0 60px rgba(255, 140, 0, 0.8),     /* Bright orange middle */
+        0 0 90px rgba(255, 87, 34, 0.6),     /* Red outer glow */
+        0 0 120px rgba(255, 50, 0, 0.4) !important;  /* Deep red halo */
+}
+
+/* Spin animation */
+@keyframes spinnerRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Fire glow pulse animation */
+@keyframes fireGlowPulse {
+    0%, 100% {
+        box-shadow:
+            0 0 30px rgba(255, 69, 0, 1),
+            0 0 60px rgba(255, 140, 0, 0.8),
+            0 0 90px rgba(255, 87, 34, 0.6),
+            0 0 120px rgba(255, 50, 0, 0.4) !important;
+        filter: brightness(1);
+    }
+    50% {
+        box-shadow:
+            0 0 40px rgba(255, 69, 0, 1),        /* Intensify at peak */
+            0 0 80px rgba(255, 140, 0, 1),
+            0 0 120px rgba(255, 87, 34, 0.8),
+            0 0 160px rgba(255, 50, 0, 0.6) !important;
+        filter: brightness(1.2);                  /* Brighten whole spinner */
+    }
+}
+
+/* Remove any pseudo-elements */
+.spinner::before,
+.spinner::after {
+    content: none !important;
+    display: none !important;
+}
+
+/* ============================================================================
+   LOADING CONTAINER
+   ============================================================================ */
+
+.loading,
+#pattern-search .loading,
+#pattern-search-results .loading {
+    display: block !important;
+    text-align: center !important;
+    padding: 3rem 2rem !important;
+    animation: none !important;
+    transform: none !important;
+    border: none !important;
+    background: transparent !important;
+    max-width: 600px !important;
+    width: auto !important;
+    min-width: 400px !important;
+}
+
+#pattern-search .loading {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 1000 !important;
+    background: transparent !important;
+    border: none !important;
+}
+
+.loading-text {
+    color: #a0a0a0 !important;
+    margin-top: 1rem !important;
+    animation: none !important;
+    white-space: nowrap !important;
+}
+
+.loading div {
+    max-width: 500px !important;
+    margin: 0 auto !important;
+}
+
+/* ============================================================================
+   ADMIN PANEL
+   ============================================================================ */
+
+#admin {
+    padding: 1.5rem !important;
+    width: 100% !important;
+    max-width: none !important;
+}
+
+.tab-content.active#admin {
+    display: block !important;
+    overflow-y: auto !important;
+    padding: 1.5rem !important;
+    width: 100% !important;
+    max-width: none !important;
+}
+
+/* Future styles will go here */

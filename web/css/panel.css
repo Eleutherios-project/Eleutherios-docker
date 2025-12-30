@@ -1,0 +1,428 @@
+/**
+ * Aegis Insight v2.0 - Side Panel Styles
+ * Styling for the collapsible side panel and its contents
+ */
+
+/* Panel Container */
+.side-panel {
+    display: flex;
+    flex-direction: column;
+    width: 0;
+    background-color: var(--secondary-bg);
+    border-left: 1px solid var(--border-color);
+    overflow: hidden;
+    transition: width 0.3s ease;
+}
+
+.side-panel.visible {
+    width: 350px;
+}
+
+/* Panel Header */
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background-color: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.panel-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: var(--accent-color);
+    margin: 0;
+}
+
+.panel-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.8rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.panel-close:hover {
+    background-color: rgba(255, 56, 96, 0.1);
+    color: #FF3860;
+}
+
+/* Panel Tabs */
+.panel-tabs {
+    display: flex;
+    background-color: var(--secondary-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.panel-tab {
+    flex: 1;
+    padding: 10px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+}
+
+.panel-tab:hover {
+    background-color: rgba(0, 204, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.panel-tab.active {
+    color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+    background-color: rgba(0, 204, 255, 0.1);
+}
+
+/* Panel Content */
+.panel-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.panel-tab-content {
+    display: none;
+}
+
+.panel-tab-content.active {
+    display: block;
+}
+
+/* Sections */
+.panel-section {
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.panel-section:last-child {
+    border-bottom: none;
+}
+
+.section-title {
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: var(--accent-color);
+    margin: 0 0 10px 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Detail Rows */
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin: 8px 0;
+    gap: 10px;
+}
+
+.detail-row.full-width {
+    flex-direction: column;
+    gap: 5px;
+}
+
+.detail-row.warning {
+    background-color: rgba(255, 56, 96, 0.1);
+    padding: 8px;
+    border-radius: 4px;
+    border-left: 3px solid #FF3860;
+}
+
+.detail-label {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    min-width: 100px;
+    flex-shrink: 0;
+}
+
+.detail-value {
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    word-break: break-word;
+    flex: 1;
+}
+
+.detail-value.monospace {
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.detail-value.claim-text {
+    line-height: 1.6;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    border-left: 3px solid var(--accent-color);
+}
+
+/* Confidence/Trust Scores */
+.confidence {
+    font-weight: bold;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.confidence.high {
+    color: #4CAF50;
+    background-color: rgba(76, 175, 80, 0.1);
+}
+
+.confidence.medium {
+    color: #FF9800;
+    background-color: rgba(255, 152, 0, 0.1);
+}
+
+.confidence.low {
+    color: #F44336;
+    background-color: rgba(244, 67, 54, 0.1);
+}
+
+/* Badges */
+.badge {
+    display: inline-block;
+    padding: 3px 8px;
+    background-color: rgba(0, 204, 255, 0.2);
+    color: var(--accent-color);
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Attribution Chain */
+.attribution-chain {
+    margin-top: 5px;
+}
+
+.chain-item {
+    padding: 6px 10px;
+    margin: 4px 0;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    border-left: 2px solid var(--accent-color);
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.chain-number {
+    color: var(--accent-color);
+    font-weight: bold;
+    margin-right: 5px;
+}
+
+/* Connections Tab */
+.connection-stats {
+    margin-bottom: 15px;
+}
+
+.stat-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    background-color: rgba(0, 204, 255, 0.2);
+    color: var(--accent-color);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: bold;
+}
+
+.connection-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.connection-item {
+    padding: 12px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    border-left: 3px solid var(--accent-color);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.connection-item:hover {
+    background-color: rgba(0, 204, 255, 0.1);
+    border-left-color: #00e6ff;
+    transform: translateX(2px);
+}
+
+.connection-header {
+    margin-bottom: 6px;
+}
+
+.connection-type {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.connection-name {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.connection-claim {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* Timeline Tab */
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--accent-color), transparent);
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-item.related {
+    opacity: 0.7;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -24px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    background-color: var(--accent-color);
+    border-radius: 50%;
+    border: 2px solid var(--secondary-bg);
+    box-shadow: 0 0 10px rgba(0, 204, 255, 0.5);
+}
+
+.timeline-marker.small {
+    width: 8px;
+    height: 8px;
+    left: -22px;
+}
+
+.timeline-marker.period {
+    background-color: #FF9800;
+    box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+}
+
+.timeline-content {
+    padding: 8px 12px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    border-left: 2px solid var(--accent-color);
+}
+
+.timeline-date {
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: var(--accent-color);
+    margin-bottom: 4px;
+}
+
+.timeline-description {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.timeline-divider {
+    margin: 20px 0 15px 0;
+    padding: 8px 0;
+    border-top: 1px dashed var(--border-color);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+/* Empty State */
+.empty-message {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Scrollbar Styling */
+.panel-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.panel-content::-webkit-scrollbar-track {
+    background: var(--primary-bg);
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.panel-content::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-color);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .side-panel.visible {
+        width: 100%;
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 1000;
+    }
+}
+
+/* Action buttons in side panel */
+.action-buttons {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color, #3a4a5c);
+}
+
+.action-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.action-row button {
+    flex: 1;
+    min-width: 80px;
+}

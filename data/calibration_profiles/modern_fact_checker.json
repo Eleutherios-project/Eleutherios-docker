@@ -1,0 +1,96 @@
+{
+  "schema_version": "2.0",
+  "metadata": {
+    "name": "Modern Fact-Checker Suppression",
+    "description": "Optimized for detecting coordinated fact-checker and platform suppression of medical, scientific, or political heterodoxy. Emphasizes deplatforming, institutional actions, and dismissal language patterns.",
+    "author": "aegis",
+    "created": "2025-11-30T00:00:00Z",
+    "tags": ["medical", "covid", "fact-checker", "contemporary", "platform"]
+  },
+  "scoring": {
+    "mode": "goldfinger",
+    "happenstance_max": 1,
+    "coincidence_max": 2,
+    "enemy_action_base": 0.50,
+    "logarithmic_factor": 0.25,
+    "max_score": 0.95
+  },
+  "semantic_patterns": {
+    "match_mode": "semantic",
+    "match_threshold": 0.75,
+    "suppression_experiences": {
+      "include": [
+        "deplatformed", "banned", "suspended", "removed",
+        "demonetized", "shadowbanned", "throttled",
+        "account terminated", "channel deleted",
+        "vilified", "smeared", "attacked", "harassed",
+        "career destroyed", "reputation ruined",
+        "received death threats", "family threatened",
+        "lost job", "forced to resign", "pushed out"
+      ],
+      "exclude": [
+        "violated terms of service",
+        "removed for spam"
+      ]
+    },
+    "institutional_actions": {
+      "include": [
+        "license revoked", "board certification removed",
+        "medical license suspended", "hospital privileges revoked",
+        "fired", "dismissed", "terminated",
+        "tenure denied", "contract not renewed",
+        "funding cut", "grant rejected", "funding revoked",
+        "paper retracted", "journal rejected",
+        "investigated by", "referred to medical board",
+        "FDA warning letter", "FTC action"
+      ],
+      "exclude": [
+        "retired voluntarily",
+        "contract completed"
+      ]
+    },
+    "dismissal_language": {
+      "include": [
+        "misinformation", "disinformation", "malinformation",
+        "false claim", "debunked", "fact-checked",
+        "no evidence", "lacks evidence", "unproven",
+        "conspiracy theory", "anti-vaxx", "anti-science",
+        "dangerous", "deadly", "harmful",
+        "horse dewormer", "bleach", "quack",
+        "pseudoscience", "snake oil", "grifter"
+      ],
+      "exclude": [
+        "clinical trial results show",
+        "peer-reviewed study found",
+        "meta-analysis demonstrates"
+      ]
+    },
+    "suppression_of_record": {
+      "include": [
+        "removed from search results", "delisted",
+        "memory-holed", "scrubbed from internet",
+        "videos deleted", "posts removed",
+        "fact-check label added", "warning label",
+        "reduced distribution", "limited visibility",
+        "not recommended", "shadow banned"
+      ],
+      "exclude": []
+    }
+  },
+  "signal_weights": {
+    "suppression_narrative": 0.45,
+    "meta_claim_density": 0.20,
+    "network_isolation": 0.05,
+    "evidence_avoidance": 0.20,
+    "authority_mismatch": 0.10
+  },
+  "thresholds": {
+    "min_claims_for_analysis": 5,
+    "score_levels": {
+      "critical": 0.80,
+      "high": 0.60,
+      "moderate": 0.40,
+      "low": 0.20
+    }
+  }
+}

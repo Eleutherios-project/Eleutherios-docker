@@ -98,7 +98,7 @@ docker-compose logs -f
 # (Press Ctrl+C when initialization completes)
 ```
 
-First startup takes 5-10 minutes to:
+First startup takes up to 10 minutes to:
 - Download container images
 - Initialize databases
 - Load demo data

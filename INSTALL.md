@@ -52,7 +52,7 @@ That's it! The demo data loads automatically.
    docker-compose --version
    ```
 
-### Step 2: Install Ollama (Optional but Recommended)
+### Step 2: Install Ollama 
 
 Ollama provides local AI processing for document analysis.
 
@@ -70,7 +70,7 @@ Ollama provides local AI processing for document analysis.
    ollama list
    ```
 
-**Note:** Aegis Insight works without Ollama, but document import requires it.
+**Note:** Aegis Insight works without Ollama, but document import and queries requires it.
 
 ### Step 3: Download Aegis Insight
 
@@ -98,7 +98,7 @@ docker-compose logs -f
 # (Press Ctrl+C when initialization completes)
 ```
 
-First startup takes 2-5 minutes to:
+First startup takes 5-10 minutes to:
 - Download container images
 - Initialize databases
 - Load demo data

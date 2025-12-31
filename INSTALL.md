@@ -211,22 +211,21 @@ services:
 
 ## Importing Your Own Data
 
-### Quick Import (< 50 PDFs)
+### Quick Import (< 10 PDFs)
 
 1. Open http://localhost:8001
 2. Go to "Data Loading" tab
 3. Follow the wizard
 
-### Batch Import (50+ PDFs)
+### Batch Import (10+ PDFs)
 
 1. Copy PDFs to `./data/inbox/`
 2. Run import:
    ```bash
-   docker-compose exec api python3 /app/run_extraction_pipeline.py \
-     --input /app/data/inbox \
-     --output /app/data/processed
+   docker-compose exec api python3 /app/aegis_import_wizard.py \
+     
    ```
-
+Follow the wizard instructions for GPU parallelism and resuming partially completed jobs.
 See [Data Loading Guide](DATA_LOADING_GUIDE.md) for details.
 
 ---

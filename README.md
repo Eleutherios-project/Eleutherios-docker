@@ -1,6 +1,6 @@
 # Eleutherios - Aegis Insight Engine
 
-**Epistemic Defense Infrastructure — See how information actually flows.**
+**Multi-Dimensional Knowledge Graph Analytics — See how information actually flows.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -376,5 +376,5 @@ MIT License — See [LICENSE](LICENSE) file.
 
 ---
 
-*Aegis Insight — Epistemic Defense Infrastructure*  
+*Aegis Insight — Multi-Dimensional Knowledge Graph Analytics*  
 *See how information actually flows.*

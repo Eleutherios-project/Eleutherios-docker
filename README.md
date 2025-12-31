@@ -1,183 +1,380 @@
-# Aegis Insight
+# Eleutherios - Aegis Insight Engine
 
-**Multi-Dimensional Knowledge Graph Analytics with Pattern Recognition and Topology Analysis**
+**Epistemic Defense Infrastructure — See how information actually flows.**
 
-[![CI/CD Pipeline](https://github.com/Eleutherios-project/Eleutherios/actions/workflows/ci.yml/badge.svg)](https://github.com/Eleutherios-project/Eleutherios/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
 
-## Overview
+Aegis Insight extracts structured knowledge from documents, builds a queryable graph of claims and entities, and provides analytical tools to detect suppression patterns, coordinated messaging, and manufactured consensus.
 
-Aegis Insight is a knowledge graph analytics platform that enables researchers to explore epistemic topology—the structural relationships between claims, sources, and narrative patterns within large document corpora.
+**🌐 Website:** [eleutherios.io](https://eleutherios.io)  
+**📖 Documentation:** [aegisinsight.net](https://aegisinsight.net)
 
-Unlike traditional search systems that return documents, Aegis Insight extracts structured claims from unstructured text, builds a queryable knowledge graph, and provides analytical tools to examine the shape and structure of knowledge itself.
+---
 
-### Key Features
+## What It Does
 
-- **Multi-Dimensional Extraction**: Seven specialized extractors process documents to identify entities, claims, temporal data, geographic references, citations, emotional content, and authority indicators
-- **Local-First Processing**: All LLM inference runs locally via Ollama—no data sent to external APIs
-- **Pattern Detection**: Algorithms identify structural patterns in knowledge networks
-- **Interactive Visualization**: Real-time, force-directed graph visualization with D3.js
-- **OCR Support**: Tesseract integration for scanned documents and historical archives
-- **MCP Integration**: Model Context Protocol server for AI assistant integration
+- **Knowledge Topology** — See citation flow, not just content. Understand who references whom and where information originates.
+- **Suppression Detection** — Identify when credible voices are systematically marginalized.
+- **Coordination Detection** — Detect synchronized messaging through temporal clustering and language analysis.
+- **Anomaly Detection** — Find patterns that deviate from expected baselines.
+- **Local-First** — Runs on your hardware. No cloud dependency, no data leaving your machine.
+
+---
 
 ## Quick Start
 
-### Prerequisites
+### Prerequisites by Platform
 
-- Docker and Docker Compose
-- [Ollama](https://ollama.com/) installed on host machine
-- 16GB RAM minimum (32GB recommended)
-- NVIDIA GPU recommended for faster processing
+| Platform | Requirements |
+|----------|-------------|
+| **Windows** | WSL2 + Docker Desktop + Ollama ([detailed guide](#windows-setup)) |
+| **Mac** | Docker Desktop + Ollama |
+| **Linux** | Docker + Docker Compose + Ollama |
 
-### Installation
+### 1. Install Prerequisites
+
+**All Platforms — Install Ollama:**
+```bash
+# Download from https://ollama.com/download
+# Then pull the required model:
+ollama pull mistral-nemo:12b
+```
+
+**Windows Users:** You must set up WSL2 first. See [Windows Setup Guide](#windows-setup) below.
+
+**Mac/Linux — Install Docker:**
+- Mac: [Docker Desktop for Mac](https://docs.docker.com/desktop/install/mac-install/)
+- Linux: [Docker Engine](https://docs.docker.com/engine/install/)
+
+### 2. Clone and Start
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/Eleutherios-project/Eleutherios.git
-cd Eleutherios
+# Clone the repository
+git clone https://github.com/Eleutherios-project/Eleutherios-docker.git
+cd Eleutherios-docker
 
-# 2. Install required Ollama models
-ollama pull mistral-nemo:12b
-ollama pull nomic-embed-text
-
-# 3. Run setup (loads ~460MB demo data)
-chmod +x setup.sh
-./setup.sh
-
-# 4. Start the services
+# Start all services
 docker-compose up -d
 
-# 5. Open the web interface (wait ~1 min for first-time init)
-open http://localhost:8001
+# Watch startup (Ctrl+C when ready)
+docker-compose logs -f api
 ```
 
-### Demo Data Included
+First startup takes 5-10 minutes to:
+- Download container images (~2GB)
+- Initialize databases
+- Load demo data (38K claims, 83K relationships)
 
-The setup includes a pre-loaded demo dataset:
-- **38,469 claims** extracted from 81 documents
-- **17,584 entities** (people, organizations, places, concepts)  
-- **43,528 vector embeddings** for semantic search
+### 3. Open in Browser
 
-Try searching: `Smedley Butler`, `Remember the Maine`, or `Thomas Paine`
+**http://localhost:8001**
 
-To start fresh without demo data:
-```bash
-./setup.sh --no-demo
+Try searching for: `Smedley Butler`, `Thomas Paine`, `Remember the Maine`
+
+---
+
+## Windows Setup
+
+Windows requires WSL2 (Windows Subsystem for Linux) to run Docker containers efficiently.
+
+### Step 1: Enable WSL2
+
+Open PowerShell as Administrator:
+```powershell
+wsl --install
 ```
 
-### Verify Installation
+Restart your computer when prompted. After restart, Ubuntu will launch — create a username and password.
+
+### Step 2: Install Docker Desktop
+
+1. Download [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
+2. During install, check **"Use WSL 2 instead of Hyper-V"**
+3. After install, open Docker Desktop → Settings → Resources → WSL Integration
+4. Enable integration for your Ubuntu distro
+5. Click "Apply & Restart"
+
+### Step 3: Install NVIDIA GPU Support (Optional, Recommended)
+
+If you have an NVIDIA GPU:
+
+1. Install latest [NVIDIA Windows Driver](https://www.nvidia.com/Download/index.aspx)
+2. In Ubuntu (WSL), install the container toolkit:
 
 ```bash
-# Check service status
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+sudo apt-get update
+sudo apt-get install -y nvidia-container-toolkit
+```
+
+3. Verify with `nvidia-smi`
+
+### Step 4: Install Ollama in WSL
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama serve &
+ollama pull mistral-nemo:12b
+```
+
+### Step 5: Continue with Quick Start
+
+Now follow the [Clone and Start](#2-clone-and-start) steps above from within your Ubuntu/WSL terminal.
+
+For the complete Windows guide with troubleshooting, see [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md).
+
+---
+
+## Mac Setup
+
+### Step 1: Install Docker Desktop
+
+Download and install [Docker Desktop for Mac](https://docs.docker.com/desktop/install/mac-install/).
+
+### Step 2: Install Ollama
+
+Download from [ollama.com/download](https://ollama.com/download) or:
+
+```bash
+brew install ollama
+```
+
+Start Ollama and pull the model:
+```bash
+ollama serve &
+ollama pull mistral-nemo:12b
+```
+
+### Step 3: Continue with Quick Start
+
+Follow the [Clone and Start](#2-clone-and-start) steps above.
+
+---
+
+## Linux Setup
+
+### Step 1: Install Docker
+
+Follow the [official Docker installation guide](https://docs.docker.com/engine/install/) for your distro.
+
+### Step 2: Install Ollama
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama serve &
+ollama pull mistral-nemo:12b
+```
+
+### Step 3: Continue with Quick Start
+
+Follow the [Clone and Start](#2-clone-and-start) steps above.
+
+---
+
+## Verifying Installation
+
+### Check Services Running
+
+```bash
 docker-compose ps
+```
+
+Expected output:
+```
+NAME            STATUS
+aegis-neo4j     Up (healthy)
+aegis-postgres  Up (healthy)
+aegis-api       Up
+```
+
+### Check Demo Data
+
+```bash
+# Node count (should be ~60,000)
+docker-compose exec neo4j cypher-shell -u neo4j -p aegistrusted \
+  "MATCH (n) RETURN count(n)"
+
+# Relationship count (should be ~83,000)
+docker-compose exec neo4j cypher-shell -u neo4j -p aegistrusted \
+  "MATCH ()-[r]->() RETURN count(r)"
+```
+
+### Test Detection
+
+1. Open http://localhost:8001
+2. Go to Detection tab
+3. Select "Suppression" mode
+4. Search for "Smedley Butler"
+5. Should return ~0.78 score (CRITICAL level)
+
+---
+
+## Configuration
+
+### Ports
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| Web UI / API | 8001 | Main interface |
+| MCP Server | 8100 | Claude Desktop integration |
+| Neo4j Browser | 7474 | Database admin |
+| Neo4j Bolt | 7687 | Database protocol |
+| PostgreSQL | 5432 | Embeddings storage |
+
+### Environment Variables
+
+Edit `docker-compose.yml`:
+
+```yaml
+environment:
+  - SEED_ON_FIRST_RUN=true      # Load demo data on first run
+  - ENABLE_MCP_SERVER=true      # Start MCP server for AI integration
+  - OLLAMA_HOST=http://host.docker.internal:11434  # Ollama location
+```
+
+### Data Directories
+
+```
+./data/inbox/              # Place PDFs here for import
+./data/processed/          # Processed files move here
+./data/calibration_profiles/  # Detection tuning profiles
+```
+
+---
+
+## Common Commands
+
+```bash
+# Start services
+docker-compose up -d
+
+# Stop services
+docker-compose down
 
 # View logs
 docker-compose logs -f api
+
+# Restart
+docker-compose restart
+
+# Full reset (removes all data)
+docker-compose down -v
+docker-compose up -d
 ```
+
+---
+
+## Importing Your Own Data
+
+1. Place PDF files in `./data/inbox/`
+2. Open http://localhost:8001
+3. Go to "Data Loading" tab
+4. Follow the wizard
+
+Processing time depends on document count and GPU availability:
+- With GPU: ~2-3 minutes per PDF
+- CPU only: ~8-10 minutes per PDF
+
+---
+
+## System Requirements
+
+### Minimum
+- CPU: 4 cores
+- RAM: 16 GB
+- Storage: 50 GB free
+- OS: Windows 10+, macOS 10.15+, Linux
+
+### Recommended
+- CPU: 8+ cores
+- RAM: 32 GB
+- Storage: 200 GB SSD
+- GPU: NVIDIA with 8GB+ VRAM
+
+---
+
+## Troubleshooting
+
+### Container won't start
+```bash
+docker-compose logs neo4j
+docker-compose logs postgres
+docker-compose logs api
+```
+
+### Port already in use
+```bash
+# Find what's using port 8001
+lsof -i :8001  # Mac/Linux
+netstat -ano | findstr :8001  # Windows
+```
+
+### Ollama not accessible
+```bash
+# Check Ollama is running
+curl http://localhost:11434/api/tags
+
+# Start if needed
+ollama serve &
+```
+
+### Windows: "Cannot connect to Docker daemon"
+Launch Docker Desktop from Start menu and wait for it to start.
+
+### Windows: GPU not detected in WSL
+```powershell
+# In PowerShell, restart WSL
+wsl --shutdown
+wsl
+nvidia-smi
+```
+
+---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Docker Compose Stack                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌───────────────────────┐   │
-│  │   Neo4j     │  │ PostgreSQL  │  │    Aegis API Server   │   │
-│  │   :7474     │  │   :5432     │  │        :8001          │   │
-│  │   :7687     │  │  + pgvector │  │  (FastAPI + Web UI)   │   │
-│  └─────────────┘  └─────────────┘  └───────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │ connects to host
-                              ▼
-                    ┌─────────────────┐
-                    │  Ollama (host)  │
-                    │     :11434      │
-                    └─────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                     Your Computer                           │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │                 Docker Containers                      │  │
+│  │  ┌─────────┐ ┌──────────┐ ┌─────────────────────┐     │  │
+│  │  │  Neo4j  │ │PostgreSQL│ │     Aegis API       │     │  │
+│  │  │ :7474   │ │  :5432   │ │ :8001 (UI + REST)   │     │  │
+│  │  │ :7687   │ │          │ │ :8100 (MCP Server)  │     │  │
+│  │  └─────────┘ └──────────┘ └─────────────────────┘     │  │
+│  └───────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │              Ollama (host)  :11434                     │  │
+│  │              mistral-nemo:12b                          │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                         │                                   │
+│                    ┌────┴────┐                              │
+│                    │NVIDIA GPU│ (optional, recommended)     │
+│                    └─────────┘                              │
+└─────────────────────────────────────────────────────────────┘
 ```
-
-## Documentation
-
-- [Technical Reference Manual](docs/Aegis_Insight_Technical_Reference.pdf) - Comprehensive documentation
-- [Quick Start Guide](docs/QUICK_START.md) - Get up and running fast
-- [API Reference](docs/API.md) - REST API documentation
-- [MCP Integration](docs/MCP.md) - Model Context Protocol setup
-
-## Usage
-
-### Loading Documents
-
-1. Navigate to the **Data Loading** tab
-2. Drag and drop documents (PDF, TXT, DOCX, MD)
-3. Click **Start Import**
-4. Monitor the three-phase extraction process
-
-### Searching
-
-1. Enter search terms in the search bar
-2. Use semantic search to find related claims
-3. Click nodes to view details
-4. Explore relationships in the graph
-
-### Pattern Detection
-
-1. Select detection mode (Suppression, Coordination, or Anomaly)
-2. Enter a topic to analyze
-3. Review detection scores and signals
-4. Examine affected claims
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NEO4J_URI` | Neo4j connection URI | `bolt://neo4j:7687` |
-| `NEO4J_PASSWORD` | Neo4j password | `aegistrusted` |
-| `POSTGRES_HOST` | PostgreSQL host | `postgres` |
-| `POSTGRES_PASSWORD` | PostgreSQL password | `aegis_trusted_2025` |
-| `OLLAMA_HOST` | Ollama API URL | `http://host.docker.internal:11434` |
-
-### Resource Requirements
-
-| Configuration | RAM | Storage | GPU |
-|---------------|-----|---------|-----|
-| Minimum | 16GB | 50GB | None |
-| Recommended | 32GB | 200GB | 8GB VRAM |
-| Production | 64GB+ | 500GB+ | 24GB+ VRAM |
-
-## Security
-
-- All containers run as non-root users
-- Read-only filesystem where possible
-- No data sent to external APIs
-- Dependency vulnerability scanning via Dependabot
-- Container scanning via Trivy
-- Code analysis via CodeQL
-- Security Note: Default credentials are used for local deployment. These services are not exposed outside the Docker network. If you expose ports externally, change the passwords in .env.
-
-## Contributing
-
-Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting PRs.
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- [Neo4j](https://neo4j.com/) - Graph database
-- [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - Vector storage
-- [Ollama](https://ollama.com/) - Local LLM inference
-- [FastAPI](https://fastapi.tiangolo.com/) - API framework
-- [D3.js](https://d3js.org/) - Graph visualization
 
 ---
 
-**Cedrus Strategic LLC** 
+## Support
+
+- **Issues:** [GitHub Issues](https://github.com/Eleutherios-project/Eleutherios-docker/issues)
+- **Documentation:** [eleutherios.io](https://eleutherios.io)
+- **API Reference:** http://localhost:8001/docs (when running)
+
+---
+
+## License
+
+MIT License — See [LICENSE](LICENSE) file.
+
+---
+
+*Aegis Insight — Epistemic Defense Infrastructure*  
+*See how information actually flows.*

@@ -1,6 +1,6 @@
 # Eleutherios - Aegis Insight Engine
 
-**Epistemic Defense Infrastructure — See how information actually flows.**
+**Multi-Dimensional Knowledge Graph Analytics — See how information actually flows.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -342,7 +342,7 @@ nvidia-smi
 ┌─────────────────────────────────────────────────────────────┐
 │                     Your Computer                           │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │                 Docker Containers                      │  │
+│  │                 Docker Containers                     │  │
 │  │  ┌─────────┐ ┌──────────┐ ┌─────────────────────┐     │  │
 │  │  │  Neo4j  │ │PostgreSQL│ │     Aegis API       │     │  │
 │  │  │ :7474   │ │  :5432   │ │ :8001 (UI + REST)   │     │  │
@@ -350,13 +350,13 @@ nvidia-smi
 │  │  └─────────┘ └──────────┘ └─────────────────────┘     │  │
 │  └───────────────────────────────────────────────────────┘  │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │              Ollama (host)  :11434                     │  │
-│  │              mistral-nemo:12b                          │  │
+│  │              Ollama (host)  :11434                    │  │
+│  │              mistral-nemo:12b                         │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                         │                                   │
-│                    ┌────┴────┐                              │
+│                    ┌────┴─────┐                             │
 │                    │NVIDIA GPU│ (optional, recommended)     │
-│                    └─────────┘                              │
+│                    └──────────┘                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -376,5 +376,5 @@ MIT License — See [LICENSE](LICENSE) file.
 
 ---
 
-*Aegis Insight — Epistemic Defense Infrastructure*  
+*Aegis Insight — Multi-Dimensional Knowledge Graph Analytics*  
 *See how information actually flows.*

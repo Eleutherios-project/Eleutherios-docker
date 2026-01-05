@@ -27,6 +27,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from dataclasses import dataclass, asdict
 import sys
+import time
 
 # Import extractors
 from aegis_coreference_resolver import CoreferenceResolver
@@ -67,7 +68,7 @@ class ExtractionConfig:
     
     # Output options
     source_path_depth: int = 3  # Keep last N path components
-    
+    enable_timing_diagnostics: bool = True
     # Dual GPU support
     secondary_ollama_url: Optional[str] = None  # e.g., "http://localhost:11435"
 
@@ -232,22 +233,25 @@ class EnhancedExtractionOrchestrator:
         except Exception as e:
             self.logger.warning(f"Authority analyzer not available: {e}")
             self.authority_analyzer = None
-    
-    def process_chunk(self, 
-                      chunk_text: str, 
+
+    def process_chunk(self,
+                      chunk_text: str,
                       context: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process a single chunk through the full pipeline.
-        
+
         Args:
             chunk_text: The text content of the chunk
             context: Context dict with source_file, title, domain, etc.
-            
+
         Returns:
             Dict with extracted entities, claims, and metadata
         """
+        import time
+        t_chunk_start = time.perf_counter()
+
         self.stats['chunks_processed'] += 1
-        
+
         result = {
             'chunk_id': self._generate_chunk_id(context, chunk_text),
             'text': chunk_text,
@@ -257,9 +261,18 @@ class EnhancedExtractionOrchestrator:
             'coreference_metadata': {},
             'processing_timestamp': datetime.utcnow().isoformat()
         }
-        
+
+        # Initialize timing variables
+        t_coref = 0
+        t_entity = 0
+        t_ent_proc = 0
+        t_claim = 0
+        t_enrich = 0
+        claim_count = 0
+
         try:
             # Step 1: Coreference resolution
+            t_start = time.perf_counter()
             resolved_text = chunk_text
             if self.coreference_resolver:
                 resolved_text, coref_meta = self.coreference_resolver.resolve(
@@ -270,11 +283,15 @@ class EnhancedExtractionOrchestrator:
                 result['coreference_metadata'] = coref_meta
                 if coref_meta.get('resolved'):
                     self.stats['coreferences_resolved'] += coref_meta.get('resolution_count', 1)
-            
+            t_coref = time.perf_counter() - t_start
+
             # Step 2: Entity extraction (from original text to get all mentions)
+            t_start = time.perf_counter()
             raw_entities = self.entity_extractor.extract(chunk_text, context)
-            
+            t_entity = time.perf_counter() - t_start
+
             # Step 3: Entity normalization and clustering
+            t_start = time.perf_counter()
             if self.entity_processor:
                 processed_entities = []
                 for entity in raw_entities:
@@ -283,44 +300,58 @@ class EnhancedExtractionOrchestrator:
                         entity_type=entity.get('type'),
                         context_text=chunk_text[:200]
                     )
-                    
+
                     # Update entity with canonical name
                     processed_entity = entity.copy()
                     processed_entity['normalized_name'] = normalized.normalized_name
                     processed_entity['canonical_name'] = normalized.canonical_name
                     processed_entity['matched_existing'] = normalized.matched_existing
-                    
+
                     if normalized.matched_existing:
                         self.stats['entities_clustered'] += 1
-                    
+
                     processed_entities.append(processed_entity)
-                
+
                 result['entities'] = processed_entities
             else:
                 result['entities'] = raw_entities
-            
+            t_ent_proc = time.perf_counter() - t_start
+
             self.stats['entities_extracted'] += len(result['entities'])
-            
+
             # Step 4: Claim extraction (from RESOLVED text for better entity linking)
+            t_start = time.perf_counter()
             claims = self.claim_extractor.extract(resolved_text, context)
-            
+            t_claim = time.perf_counter() - t_start
+
             # Step 5: Enrich claims with temporal/geographic/citation data
             # Extract document/section date from chunk text for soft date propagation
+            t_start = time.perf_counter()
             document_date = extract_section_date(chunk_text)
-            
-            enriched_claims = []
-            for claim in claims:
-                enriched = self._enrich_claim(claim, context, document_date=document_date)
-                enriched_claims.append(enriched)
-            
+
+            # Use batch enrichment (5 LLM calls instead of N*5)
+            enriched_claims = self._enrich_claims_batch(claims, context, document_date=document_date)
+
+            t_enrich = time.perf_counter() - t_start
+            claim_count = len(enriched_claims)
+
             result['claims'] = enriched_claims
             self.stats['claims_extracted'] += len(enriched_claims)
-            
+
         except Exception as e:
             self.logger.error(f"Error processing chunk: {e}")
             self.stats['errors'] += 1
             result['error'] = str(e)
-        
+
+        # Log timing summary
+        t_total = time.perf_counter() - t_chunk_start
+        self.logger.info(
+            f"TIMING: coref={t_coref:.1f}s, entity={t_entity:.1f}s, "
+            f"ent_proc={t_ent_proc:.1f}s, claim={t_claim:.1f}s, "
+            f"enrich={t_enrich:.1f}s ({claim_count} claims), "
+            f"TOTAL={t_total:.1f}s"
+        )
+
         return result
     
     def _enrich_claim(self, claim: Dict, context: Dict, document_date: Optional[str] = None) -> Dict:
@@ -412,7 +443,211 @@ class EnhancedExtractionOrchestrator:
                 self.logger.debug(f"Authority analysis failed: {e}")
         
         return claim
-    
+
+    def _call_ollama_batch(self, prompt: str) -> str:
+        """Make a batch extraction call to Ollama."""
+        import requests
+
+        response = requests.post(
+            f"{self.config.ollama_url}/api/generate",
+            json={
+                "model": self.config.primary_model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.1,
+                    "num_predict": 4096
+                }
+            },
+            timeout=120
+        )
+
+        if response.status_code == 200:
+            return response.json().get('response', '')
+        else:
+            raise Exception(f"Ollama batch call failed: {response.status_code}")
+
+    def _parse_batch_response(self, response: str, expected_count: int, default: Dict) -> List[Dict]:
+        """Parse JSON array response from batch extraction."""
+        import re
+
+        json_match = re.search(r'\[[\s\S]*\]', response)
+
+        if not json_match:
+            self.logger.warning(f"No JSON array found in batch response")
+            return [default.copy() for _ in range(expected_count)]
+
+        try:
+            results = json.loads(json_match.group())
+
+            if len(results) != expected_count:
+                self.logger.warning(f"Batch response had {len(results)} items, expected {expected_count}")
+                while len(results) < expected_count:
+                    results.append(default.copy())
+                results = results[:expected_count]
+
+            return results
+
+        except json.JSONDecodeError as e:
+            self.logger.warning(f"Failed to parse batch response: {e}")
+            return [default.copy() for _ in range(expected_count)]
+
+    def _batch_extract_temporal(self, claim_texts: List[str], context: Dict) -> List[Dict]:
+        """Extract temporal data from multiple claims in one LLM call."""
+        n = len(claim_texts)
+        batch_prompt = f"""Analyze these {n} claims and extract temporal information from EACH.
+Return a JSON array with exactly {n} objects.
+
+CLAIMS:
+"""
+        for i, text in enumerate(claim_texts):
+            batch_prompt += f"[{i + 1}]: {text}\n"
+
+        batch_prompt += """
+Return ONLY valid JSON: [{"absolute_dates": [{"date": "YYYY-MM-DD", "confidence": 0.9}], "relative_dates": [], "temporal_markers": []}, ...]"""
+
+        response = self._call_ollama_batch(batch_prompt)
+        return self._parse_batch_response(response, n, default={'absolute_dates': [], 'relative_dates': [],
+                                                                'temporal_markers': []})
+
+    def _batch_extract_geographic(self, claim_texts: List[str], context: Dict) -> List[Dict]:
+        """Extract geographic data from multiple claims in one LLM call."""
+        n = len(claim_texts)
+        batch_prompt = f"""Analyze these {n} claims and extract geographic information from EACH.
+Return a JSON array with exactly {n} objects.
+
+CLAIMS:
+"""
+        for i, text in enumerate(claim_texts):
+            batch_prompt += f"[{i + 1}]: {text}\n"
+
+        batch_prompt += """
+Return ONLY valid JSON: [{"locations": [{"name": "Place", "type": "city"}], "cultural_context": []}, ...]"""
+
+        response = self._call_ollama_batch(batch_prompt)
+        return self._parse_batch_response(response, n, default={'locations': [], 'cultural_context': []})
+
+    def _batch_extract_citation(self, claim_texts: List[str], context: Dict) -> List[Dict]:
+        """Extract citation data from multiple claims in one LLM call."""
+        n = len(claim_texts)
+        batch_prompt = f"""Analyze these {n} claims and extract citation/source information from EACH.
+Return a JSON array with exactly {n} objects.
+
+CLAIMS:
+"""
+        for i, text in enumerate(claim_texts):
+            batch_prompt += f"[{i + 1}]: {text}\n"
+
+        batch_prompt += """
+Return ONLY valid JSON: [{"cites_other_work": true, "attribution_chain": ["source1"]}, ...]"""
+
+        response = self._call_ollama_batch(batch_prompt)
+        return self._parse_batch_response(response, n, default={'cites_other_work': False, 'attribution_chain': []})
+
+    def _batch_extract_emotion(self, claim_texts: List[str], context: Dict) -> List[Dict]:
+        """Extract emotional content from multiple claims in one LLM call."""
+        n = len(claim_texts)
+        batch_prompt = f"""Analyze these {n} claims for emotional manipulation signals.
+Return a JSON array with exactly {n} objects.
+
+CLAIMS:
+"""
+        for i, text in enumerate(claim_texts):
+            batch_prompt += f"[{i + 1}]: {text}\n"
+
+        batch_prompt += """
+Return ONLY valid JSON: [{"primary_sentiment": "fear|anger|hope|neutral", "emotional_intensity": 0.0-1.0, "fact_to_emotion_ratio": 0.0-1.0, "manipulation_indicators": {"appeals_to_fear": false, "appeals_to_anger": false, "urgency_without_evidence": false, "loaded_language": false}}, ...]"""
+
+        response = self._call_ollama_batch(batch_prompt)
+        return self._parse_batch_response(response, n,
+                                          default={'primary_sentiment': 'neutral', 'emotional_intensity': 0.0,
+                                                   'fact_to_emotion_ratio': 0.5, 'manipulation_indicators': {}})
+
+    def _batch_extract_authority(self, claim_texts: List[str], context: Dict) -> List[Dict]:
+        """Extract authority/domain analysis from multiple claims in one LLM call."""
+        n = len(claim_texts)
+        batch_prompt = f"""Analyze these {n} claims for authority and expertise signals.
+Return a JSON array with exactly {n} objects.
+
+CLAIMS:
+"""
+        for i, text in enumerate(claim_texts):
+            batch_prompt += f"[{i + 1}]: {text}\n"
+
+        batch_prompt += """
+Return ONLY valid JSON: [{"claim_domain": "medicine|politics|military|science|other", "authority_type": "credential|position|celebrity|anonymous", "domain_match": 0.0-1.0, "domain_drift": false}, ...]"""
+
+        response = self._call_ollama_batch(batch_prompt)
+        return self._parse_batch_response(response, n,
+                                          default={'claim_domain': 'unknown', 'authority_type': 'unknown',
+                                                   'domain_match': 0.5, 'domain_drift': False})
+
+    def _enrich_claims_batch(self, claims: List[Dict], context: Dict, document_date: Optional[str] = None) -> List[
+        Dict]:
+        """
+        Batch enrich all claims - 1 LLM call per extractor instead of N.
+        """
+        if not claims:
+            return claims
+
+        claim_texts = [c.get('claim_text', '') for c in claims]
+        n = len(claims)
+
+        # Batch extract all dimensions
+        temporal_results = self._batch_extract_temporal(claim_texts, context)
+        geographic_results = self._batch_extract_geographic(claim_texts, context)
+        citation_results = self._batch_extract_citation(claim_texts, context)
+
+        emotion_results = [None] * n
+        if self.emotion_extractor:
+            emotion_results = self._batch_extract_emotion(claim_texts, context)
+
+        authority_results = [None] * n
+        if self.authority_analyzer:
+            authority_results = self._batch_extract_authority(claim_texts, context)
+
+        # Merge results into claims
+        for i, claim in enumerate(claims):
+            # Temporal with document_date fallback
+            claim['temporal_data'] = temporal_results[i] if i < len(temporal_results) else {'absolute_dates': [],
+                                                                                            'relative_dates': [],
+                                                                                            'temporal_markers': []}
+
+            if document_date and not claim['temporal_data'].get('absolute_dates'):
+                claim['temporal_data']['soft_date'] = {
+                    'date': document_date,
+                    'source': 'document_section',
+                    'confidence': 0.8,
+                    'type': 'inferred'
+                }
+                claim['temporal_data']['absolute_dates'] = [{
+                    'date': document_date,
+                    'confidence': 0.8,
+                    'type': 'document_context',
+                    'context': 'Date from document section header'
+                }]
+
+            # Geographic
+            claim['geographic_data'] = geographic_results[i] if i < len(geographic_results) else {'locations': [],
+                                                                                                  'cultural_context': []}
+
+            # Citation
+            claim['citation_data'] = citation_results[i] if i < len(citation_results) else {'cites_other_work': False,
+                                                                                            'attribution_chain': []}
+
+            # Emotion
+            if emotion_results[i]:
+                claim['emotional_data'] = emotion_results[i]
+            else:
+                claim['emotional_data'] = {'sentiment': 'neutral', 'intensity': 0.0, 'fear': 0.0, 'anger': 0.0,
+                                           'urgency': 0.0}
+
+            # Authority
+            if authority_results[i]:
+                claim['authority_data'] = authority_results[i]
+
+        return claims
+
     def _process_context(self, context: Dict) -> Dict:
         """Process context, including shortening source path."""
         

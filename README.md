@@ -277,8 +277,8 @@ docker-compose up -d
 4. Follow the wizard
 
 Processing time depends on document count and GPU availability:
-- With GPU: ~2-3 minutes per PDF
-- CPU only: ~8-10 minutes per PDF
+- With GPU: ~2-60 minutes per PDF (A6000 class perform faster, 3060 laptop may experience 2x-4x processing times
+- CPU only: significant delays expected and is not recommended
 
 ---
 

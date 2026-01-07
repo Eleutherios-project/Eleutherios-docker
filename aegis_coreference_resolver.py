@@ -169,7 +169,7 @@ JSON:"""
                     "num_predict": 2000
                 }
             },
-            timeout=60
+            timeout=180
         )
         response.raise_for_status()
         return response.json().get('response', '')

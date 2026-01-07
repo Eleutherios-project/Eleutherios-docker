@@ -117,7 +117,7 @@ class AegisEmotionExtractor:
                         "num_predict": 400
                     }
                 },
-                timeout=60
+                timeout=180
             )
             
             if response.status_code != 200:

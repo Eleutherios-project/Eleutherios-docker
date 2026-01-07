@@ -459,7 +459,7 @@ class EnhancedExtractionOrchestrator:
                     "num_predict": 4096
                 }
             },
-            timeout=120
+            timeout=300
         )
 
         if response.status_code == 200:
@@ -778,7 +778,7 @@ def warmup_ollama(url: str, model: str, logger) -> bool:
                 "stream": False,
                 "options": {"num_predict": 5}
             },
-            timeout=120  # Model loading can take time
+            timeout=300  # Model loading can take time
         )
         
         if response.status_code == 200:

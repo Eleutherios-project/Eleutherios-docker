@@ -390,5 +390,5 @@ sudo lsof -i :8001
 
 ---
 
-*Aegis Insight - Epistemic Defense Infrastructure*  
+*Aegis Insight *  
 *Cedrus Strategic LLC*

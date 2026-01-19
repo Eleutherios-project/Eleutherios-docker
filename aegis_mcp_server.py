@@ -12,13 +12,13 @@ Provides epistemic context endpoints for AI systems to query:
 Endpoints:
 1. analyze_topic - Pre-retrieval epistemic check
 2. assess_source - Source position in knowledge topology
-3. get_perspectives - Clustered perspectives on topic
+3. get_perspectives - Clustered perspectives on topic (semantic clustering)
 4. scan_corpus - Batch scan for patterns (async)
 5. get_claim_context - Full context for specific claim
 6. list_domains - Available domains and metadata
 
-Version: 1.0 MVP
-Date: December 2025
+Version: 1.1 (Fixed lifespan, enhanced perspectives)
+Date: January 2026
 """
 
 import os
@@ -26,10 +26,12 @@ import sys
 import json
 import time
 import logging
+import requests
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Union
 from enum import Enum
 from dataclasses import dataclass, asdict
+from contextlib import asynccontextmanager
 
 # FastAPI
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
@@ -62,6 +64,9 @@ POSTGRES_DB = os.getenv("POSTGRES_DB", "aegis_insight")
 POSTGRES_USER = os.getenv("POSTGRES_USER", "aegis")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "aegis_trusted_2025")
 
+# Ollama for embeddings (used by get_perspectives clustering)
+OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+
 # =============================================================================
 # Pydantic Models (Request/Response)
 # =============================================================================
@@ -91,6 +96,7 @@ class GetPerspectivesRequest(BaseModel):
     domain: Optional[str] = Field(None, description="Domain scope")
     max_clusters: int = Field(5, ge=2, le=10, description="Maximum perspective clusters")
     claims_per_cluster: int = Field(5, ge=1, le=20, description="Representative claims per cluster")
+    use_semantic_clustering: bool = Field(True, description="Use embedding-based clustering")
 
 
 class ScanCorpusRequest(BaseModel):
@@ -151,8 +157,26 @@ class DatabaseManager:
     def get_pg_cursor(self):
         """Get PostgreSQL cursor"""
         if self.pg_conn:
+            # Check connection and reconnect if needed
+            try:
+                self.pg_conn.cursor().execute("SELECT 1")
+            except (psycopg2.OperationalError, psycopg2.InterfaceError):
+                self._reconnect_postgres()
             return self.pg_conn.cursor(cursor_factory=RealDictCursor)
         return None
+    
+    def _reconnect_postgres(self):
+        """Reconnect to PostgreSQL if connection lost"""
+        try:
+            self.pg_conn = psycopg2.connect(
+                host=POSTGRES_HOST,
+                database=POSTGRES_DB,
+                user=POSTGRES_USER,
+                password=POSTGRES_PASSWORD
+            )
+            logger.info("✓ Reconnected to PostgreSQL")
+        except Exception as e:
+            logger.error(f"PostgreSQL reconnection failed: {e}")
     
     def close(self):
         """Close connections"""
@@ -170,26 +194,79 @@ db: Optional[DatabaseManager] = None
 # =============================================================================
 
 class DetectionService:
-    """Integrates with Aegis detection algorithms"""
-    
+    """Integrates with Aegis detection algorithms via two-stage semantic pipeline"""
+
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
-    
-    def get_claims_for_topic(self, topic: str, domain: Optional[str], max_claims: int) -> List[Dict]:
-        """Fetch claims matching topic using semantic search"""
-        
+        self.api_base_url = "http://localhost:8001"
+
+    def get_claims_for_topic(self, topic: str, domain: Optional[str], max_claims: int) -> tuple:
+        """
+        Fetch claims using semantic search (two-stage pipeline).
+
+        Returns:
+            tuple: (claims_list, claim_ids_list)
+        """
+        try:
+            # STAGE 1: Semantic search via pattern-search endpoint (uses GPU embeddings)
+            logger.info(f"MCP: Semantic search for topic: {topic}")
+
+            response = requests.post(
+                f"{self.api_base_url}/api/pattern-search",
+                json={"query": topic, "limit": max_claims},
+                timeout=90  # Allow time for GPU embedding computation
+            )
+
+            if response.status_code != 200:
+                logger.warning(f"Pattern search failed ({response.status_code}), falling back to text search")
+                return self._fallback_text_search(topic, domain, max_claims)
+
+            data = response.json()
+            claims = data.get("claims", [])
+
+            if not claims:
+                logger.info("No claims from semantic search, trying text fallback")
+                return self._fallback_text_search(topic, domain, max_claims)
+
+            # Extract claim IDs for detector (Neo4j elementId format)
+            claim_ids = []
+            for c in claims:
+                cid = c.get("id") or c.get("claim_id") or c.get("elementId")
+                if cid:
+                    claim_ids.append(cid)
+
+            logger.info(f"MCP: Semantic search returned {len(claims)} claims, {len(claim_ids)} with IDs")
+
+            # Filter by domain if specified
+            if domain:
+                claims = [c for c in claims if c.get("domain") == domain]
+                logger.info(f"MCP: After domain filter: {len(claims)} claims")
+
+            return claims, claim_ids
+
+        except requests.exceptions.Timeout:
+            logger.warning("Pattern search timed out, falling back to text search")
+            return self._fallback_text_search(topic, domain, max_claims)
+        except Exception as e:
+            logger.error(f"Semantic search error: {e}, falling back to text search")
+            return self._fallback_text_search(topic, domain, max_claims)
+
+    def _fallback_text_search(self, topic: str, domain: Optional[str], max_claims: int) -> tuple:
+        """Legacy text search fallback (no semantic matching) - scores will be inaccurate"""
+        logger.warning("MCP: Using legacy text search - detection scores may be INACCURATE!")
+
         with self.db.get_neo4j_session() as session:
-            # Use semantic search via embeddings if available, fall back to text search
             query = """
             MATCH (c:Claim)
             WHERE toLower(c.claim_text) CONTAINS toLower($topic)
             """
-            
+
             if domain:
                 query += " AND c.domain = $domain"
-            
+
             query += """
-            RETURN c.claim_id AS claim_id,
+            RETURN elementId(c) AS id,
+                   c.claim_id AS claim_id,
                    c.claim_text AS claim_text,
                    c.claim_type AS claim_type,
                    c.confidence AS confidence,
@@ -197,179 +274,359 @@ class DetectionService:
                    c.domain AS domain
             LIMIT $max_claims
             """
-            
+
             result = session.run(query, topic=topic, domain=domain, max_claims=max_claims)
             claims = [dict(record) for record in result]
-            
-        return claims
-    
-    def detect_suppression(self, claims: List[Dict], profile: Optional[str] = None) -> Dict:
-        """Run suppression detection on claims"""
-        
-        if not claims:
-            return {
-                'score': 0.0,
-                'level': 'NONE',
-                'confidence': 0.0,
-                'signals': {},
-                'indicators': []
+            claim_ids = [c["id"] for c in claims if c.get("id")]
+
+        return claims, claim_ids
+
+    def detect_suppression(self, claims: List[Dict], profile: Optional[str] = None,
+                           claim_ids: List[str] = None, topic: str = None) -> Dict:
+        """Run suppression detection via API with claim_ids for semantic coverage."""
+        try:
+            payload = {
+                "topic": topic or "unknown",
+                "query": topic or "unknown",
+                "limit": len(claims) if claims else 500
             }
-        
-        # Calculate signals
-        signals = {}
-        
-        # Signal 1: META claim density
-        meta_claims = [c for c in claims if c.get('claim_type') == 'META']
-        primary_claims = [c for c in claims if c.get('claim_type') == 'PRIMARY']
-        meta_density = len(meta_claims) / len(claims) if claims else 0
-        signals['meta_claim_density'] = {
-            'score': min(meta_density * 2, 1.0),  # Scale up
-            'meta_count': len(meta_claims),
-            'primary_count': len(primary_claims),
-            'total_claims': len(claims)
-        }
-        
-        # Signal 2: Network isolation (citation check)
-        with self.db.get_neo4j_session() as session:
-            claim_ids = [c['claim_id'] for c in claims if c.get('claim_id')]
+
             if claim_ids:
-                result = session.run("""
-                    MATCH (c:Claim)
-                    WHERE c.claim_id IN $claim_ids
-                    OPTIONAL MATCH (c)-[:CITES]->()
-                    WITH c, count(*) as citations
-                    RETURN avg(citations) as avg_citations,
-                           sum(CASE WHEN citations = 0 THEN 1 ELSE 0 END) as uncited_count
-                """, claim_ids=claim_ids)
-                
-                record = result.single()
-                if record:
-                    uncited_ratio = record['uncited_count'] / len(claim_ids) if claim_ids else 0
-                    signals['network_isolation'] = {
-                        'score': uncited_ratio,
-                        'avg_citations': record['avg_citations'] or 0,
-                        'uncited_count': record['uncited_count']
-                    }
-                else:
-                    signals['network_isolation'] = {'score': 0.5, 'avg_citations': 0, 'uncited_count': 0}
+                payload["claim_ids"] = claim_ids
+                logger.info(f"MCP: Suppression detection with {len(claim_ids)} semantic claim IDs")
             else:
-                signals['network_isolation'] = {'score': 0.5, 'avg_citations': 0, 'uncited_count': 0}
-        
-        # Signal 3: Evidence avoidance (META claims without citations)
-        meta_without_evidence = len([c for c in meta_claims 
-                                     if not c.get('citation_data') or c.get('citation_data') == '{}'])
-        evidence_avoidance = meta_without_evidence / len(meta_claims) if meta_claims else 0
-        signals['evidence_avoidance'] = {
-            'score': evidence_avoidance,
-            'meta_without_citations': meta_without_evidence,
-            'meta_total': len(meta_claims)
-        }
-        
-        # Signal 4: Suppression narrative indicators
-        suppression_keywords = [
-            'suppressed', 'censored', 'silenced', 'banned', 'removed',
-            'dismissed', 'ignored', 'attacked', 'discredited', 'marginalized',
-            'fired', 'prosecuted', 'imprisoned', 'exiled', 'condemned'
-        ]
-        
-        indicators_found = []
-        for claim in primary_claims:
-            text = claim.get('claim_text', '').lower()
-            for keyword in suppression_keywords:
-                if keyword in text:
-                    indicators_found.append({
-                        'claim_id': claim.get('claim_id'),
-                        'text': claim.get('claim_text', '')[:100],
-                        'keyword': keyword
-                    })
-                    break
-        
-        suppression_indicator_score = min(len(indicators_found) / 5, 1.0)  # Cap at 5 indicators
-        signals['suppression_narrative'] = {
-            'score': suppression_indicator_score,
-            'indicators_found': len(indicators_found),
-            'indicators': indicators_found[:10]  # Limit to 10
-        }
-        
-        # Aggregate score
-        weights = {
-            'meta_claim_density': 0.15,
-            'network_isolation': 0.20,
-            'evidence_avoidance': 0.20,
-            'suppression_narrative': 0.45
-        }
-        
-        total_score = sum(
-            signals.get(signal, {}).get('score', 0) * weight
-            for signal, weight in weights.items()
-        )
-        
-        # Determine level
-        if total_score >= 0.75:
-            level = 'CRITICAL'
-        elif total_score >= 0.55:
-            level = 'HIGH'
-        elif total_score >= 0.35:
-            level = 'MODERATE'
-        elif total_score >= 0.15:
-            level = 'LOW'
+                logger.warning("MCP: No claim_ids provided - detection may be inaccurate")
+
+            if profile:
+                payload["profile"] = profile
+
+            response = requests.post(
+                f"{self.api_base_url}/api/detect/suppression",
+                json=payload,
+                timeout=60
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                result = data.get("result", data)
+                return {
+                    'score': result.get("suppression_score", 0),
+                    'level': self._score_to_level(result.get("suppression_score", 0)),
+                    'confidence': result.get("confidence", 0),
+                    'signals': result.get("signals", {}),
+                    'indicators': result.get("indicators", []),
+                    'claims_analyzed': result.get("claims_analyzed", len(claims))
+                }
+            else:
+                logger.error(f"Suppression API error: {response.status_code} - {response.text[:200]}")
+                return self._local_suppression_calc(claims)
+
+        except Exception as e:
+            logger.error(f"Suppression detection error: {e}")
+            return self._local_suppression_calc(claims)
+
+    def detect_coordination(self, claims: List[Dict], claim_ids: List[str] = None, topic: str = None) -> Dict:
+        """Run coordination detection via API with claim_ids."""
+        try:
+            payload = {
+                "topic": topic or "unknown",
+                "query": topic or "unknown",
+                "limit": len(claims) if claims else 500
+            }
+
+            if claim_ids:
+                payload["claim_ids"] = claim_ids
+                logger.info(f"MCP: Coordination detection with {len(claim_ids)} semantic claim IDs")
+
+            response = requests.post(
+                f"{self.api_base_url}/api/detect/coordination",
+                json=payload,
+                timeout=60
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    'score': data.get("coordination_score", 0),
+                    'confidence': data.get("confidence", 0),
+                    'signals': data.get("signals", {}),
+                    'temporal_clustering_detected': data.get("signals", {}).get("temporal_clustering", {}).get(
+                        "burst_detected", False),
+                    'citation_cartel_detected': data.get("signals", {}).get("citation_cartel", {}).get(
+                        "cartel_detected", False),
+                    'language_similarity_avg': data.get("signals", {}).get("language_similarity", {}).get(
+                        "avg_similarity", 0),
+                    'clusters': data.get("clusters", []),
+                    'claims_analyzed': data.get("claims_analyzed", len(claims))
+                }
+            else:
+                logger.error(f"Coordination API error: {response.status_code}")
+                return {'score': 0, 'confidence': 0, 'signals': {}, 'temporal_clustering_detected': False,
+                        'citation_cartel_detected': False, 'language_similarity_avg': 0, 'clusters': []}
+
+        except Exception as e:
+            logger.error(f"Coordination detection error: {e}")
+            return {'score': 0, 'confidence': 0, 'signals': {}, 'temporal_clustering_detected': False,
+                    'citation_cartel_detected': False, 'language_similarity_avg': 0, 'clusters': []}
+
+    def detect_anomaly(self, claims: List[Dict], claim_ids: List[str] = None, topic: str = None) -> Dict:
+        """Run anomaly detection via API with claim_ids."""
+        try:
+            payload = {
+                "topic": topic or "unknown",
+                "query": topic or "unknown",
+                "limit": len(claims) if claims else 500
+            }
+
+            if claim_ids:
+                payload["claim_ids"] = claim_ids
+                logger.info(f"MCP: Anomaly detection with {len(claim_ids)} semantic claim IDs")
+
+            response = requests.post(
+                f"{self.api_base_url}/api/detect/anomaly",
+                json=payload,
+                timeout=60
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    'score': data.get("anomaly_score", 0),
+                    'confidence': data.get("confidence", 0),
+                    'cross_domain_patterns': data.get("cross_domain_patterns", []),
+                    'geographic_clustering': data.get("geographic_clustering"),
+                    'anomalies_found': data.get("anomalies_found", 0)
+                }
+            else:
+                logger.error(f"Anomaly API error: {response.status_code}")
+                return {'score': 0, 'confidence': 0, 'cross_domain_patterns': [], 'geographic_clustering': None}
+
+        except Exception as e:
+            logger.error(f"Anomaly detection error: {e}")
+            return {'score': 0, 'confidence': 0, 'cross_domain_patterns': [], 'geographic_clustering': None}
+
+    def _score_to_level(self, score: float) -> str:
+        """Convert numeric score to level string"""
+        if score >= 0.7:
+            return "CRITICAL"
+        elif score >= 0.5:
+            return "HIGH"
+        elif score >= 0.35:
+            return "MODERATE"
+        elif score >= 0.15:
+            return "LOW"
         else:
-            level = 'MINIMAL'
-        
-        # Confidence based on claim count
-        confidence = min(len(claims) / 50, 1.0)
-        
-        return {
-            'score': round(total_score, 3),
-            'level': level,
-            'confidence': round(confidence, 2),
-            'signals': signals,
-            'indicators': indicators_found[:10]
-        }
-    
-    def detect_coordination(self, claims: List[Dict]) -> Dict:
-        """Run coordination detection on claims"""
-        
+            return "MINIMAL"
+
+    def _local_suppression_calc(self, claims: List[Dict]) -> Dict:
+        """Local fallback calculation if API fails"""
         if not claims:
-            return {'score': 0.0, 'clusters': [], 'language_similarity': 0.0}
-        
-        # Simplified coordination detection
-        # Full implementation would use temporal clustering and language similarity
-        
-        # Check for temporal clustering (claims from similar timeframes)
-        # For now, return placeholder
+            return {'score': 0, 'level': 'MINIMAL', 'confidence': 0, 'signals': {}, 'indicators': []}
+
+        meta_count = sum(1 for c in claims if c.get('claim_type') == 'META')
+        meta_density = meta_count / len(claims) if claims else 0
+
+        score = min(meta_density * 0.5, 0.5)
+
         return {
-            'score': 0.0,
-            'clusters': [],
-            'language_similarity_avg': 0.0,
-            'temporal_clustering_detected': False,
-            'citation_cartel_detected': False
-        }
-    
-    def detect_anomaly(self, claims: List[Dict]) -> Dict:
-        """Run anomaly detection on claims"""
-        
-        if not claims:
-            return {'score': 0.0, 'anomalies': []}
-        
-        # Simplified anomaly detection
-        # Full implementation would use cross-cultural pattern matching
-        
-        return {
-            'score': 0.0,
-            'cross_domain_patterns': [],
-            'geographic_clustering': None
+            'score': score,
+            'level': self._score_to_level(score),
+            'confidence': 0.3,
+            'signals': {
+                'meta_claim_density': {'score': meta_density},
+                '_note': 'Fallback calculation - API unavailable'
+            },
+            'indicators': []
         }
 
 
 # =============================================================================
-# FastAPI Application
+# Perspective Clustering Service
 # =============================================================================
+
+class PerspectiveClusteringService:
+    """
+    Enhanced perspective clustering using semantic embeddings.
+    
+    Provides meaningful clustering of claims beyond simple type-based grouping.
+    """
+    
+    def __init__(self, db_manager: DatabaseManager):
+        self.db = db_manager
+        self.api_base_url = "http://localhost:8001"
+    
+    def cluster_claims_semantically(self, claims: List[Dict], max_clusters: int = 5) -> List[Dict]:
+        """
+        Cluster claims using embedding similarity from PostgreSQL.
+        
+        Uses pre-computed embeddings for fast clustering.
+        """
+        if not claims or len(claims) < 2:
+            return self._fallback_type_clustering(claims, max_clusters)
+        
+        try:
+            # Get claim IDs
+            claim_ids = []
+            for c in claims:
+                cid = c.get('claim_id') or c.get('id')
+                if cid:
+                    claim_ids.append(cid)
+            
+            if not claim_ids:
+                return self._fallback_type_clustering(claims, max_clusters)
+            
+            # Try to get clusters via API (uses embedding similarity)
+            response = requests.post(
+                f"{self.api_base_url}/api/cluster-perspectives",
+                json={
+                    "claim_ids": claim_ids[:200],  # Limit for performance
+                    "max_clusters": max_clusters
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("clusters"):
+                    logger.info(f"MCP: Got {len(data['clusters'])} semantic clusters from API")
+                    return data["clusters"]
+            
+            # Fallback to source-based clustering
+            return self._source_based_clustering(claims, max_clusters)
+            
+        except Exception as e:
+            logger.warning(f"Semantic clustering failed: {e}, using fallback")
+            return self._fallback_type_clustering(claims, max_clusters)
+    
+    def _source_based_clustering(self, claims: List[Dict], max_clusters: int) -> List[Dict]:
+        """
+        Cluster by source document - groups claims from same sources together.
+        Useful for seeing how different sources discuss a topic.
+        """
+        source_clusters = {}
+        
+        for claim in claims:
+            source = claim.get('source_file') or claim.get('source') or 'Unknown Source'
+            # Normalize source name
+            source_name = source.split('/')[-1] if '/' in source else source
+            source_name = source_name.replace('.jsonl', '').replace('.txt', '').replace('.pdf', '')
+            
+            if source_name not in source_clusters:
+                source_clusters[source_name] = {
+                    'claims': [],
+                    'types': set()
+                }
+            source_clusters[source_name]['claims'].append(claim)
+            claim_type = claim.get('claim_type') or claim.get('type') or 'UNKNOWN'
+            source_clusters[source_name]['types'].add(claim_type)
+        
+        # Sort by number of claims and take top clusters
+        sorted_sources = sorted(source_clusters.items(), key=lambda x: len(x[1]['claims']), reverse=True)
+        
+        clusters = []
+        for source_name, data in sorted_sources[:max_clusters]:
+            # Determine dominant perspective
+            types_list = list(data['types'])
+            if 'META' in types_list and len(data['claims']) > 2:
+                label = f"Critical perspective: {source_name}"
+            elif 'PRIMARY' in types_list:
+                label = f"Primary source: {source_name}"
+            elif 'SECONDARY' in types_list:
+                label = f"Secondary analysis: {source_name}"
+            else:
+                label = f"Source: {source_name}"
+            
+            clusters.append({
+                'label': label,
+                'size': len(data['claims']),
+                'source': source_name,
+                'claim_types': types_list,
+                'claims': data['claims']
+            })
+        
+        return clusters
+    
+    def _fallback_type_clustering(self, claims: List[Dict], max_clusters: int) -> List[Dict]:
+        """
+        Fallback: cluster by claim type (PRIMARY, META, SECONDARY, CONTEXTUAL).
+        Simple but provides meaningful perspective separation.
+        """
+        type_clusters = {}
+        
+        type_labels = {
+            'PRIMARY': 'Primary claims (direct assertions)',
+            'META': 'Meta claims (commentary/criticism)',
+            'SECONDARY': 'Secondary claims (derived/analytical)',
+            'CONTEXTUAL': 'Contextual claims (background/framing)',
+            'UNKNOWN': 'Uncategorized claims'
+        }
+        
+        for claim in claims:
+            claim_type = claim.get('claim_type') or claim.get('type') or 'UNKNOWN'
+            if claim_type not in type_clusters:
+                type_clusters[claim_type] = {
+                    'label': type_labels.get(claim_type, f'{claim_type} claims'),
+                    'claims': [],
+                    'sources': set()
+                }
+            type_clusters[claim_type]['claims'].append(claim)
+            source = claim.get('source_file') or claim.get('source')
+            if source:
+                type_clusters[claim_type]['sources'].add(source.split('/')[-1])
+        
+        # Sort by size and format
+        sorted_types = sorted(type_clusters.items(), key=lambda x: len(x[1]['claims']), reverse=True)
+        
+        clusters = []
+        for claim_type, data in sorted_types[:max_clusters]:
+            clusters.append({
+                'label': data['label'],
+                'size': len(data['claims']),
+                'claim_type': claim_type,
+                'source_count': len(data['sources']),
+                'claims': data['claims']
+            })
+        
+        return clusters
+
+
+# =============================================================================
+# FastAPI Application with Lifespan
+# =============================================================================
+
+# Global services
+detection: Optional[DetectionService] = None
+clustering: Optional[PerspectiveClusteringService] = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Modern lifespan handler - replaces deprecated on_event decorators.
+    """
+    global db, detection, clustering
+    
+    # Startup
+    logger.info("Starting Aegis MCP Server...")
+    db = DatabaseManager()
+    detection = DetectionService(db)
+    clustering = PerspectiveClusteringService(db)
+    logger.info("Aegis MCP Server started")
+    
+    yield  # Server runs here
+    
+    # Shutdown
+    logger.info("Shutting down Aegis MCP Server...")
+    if db:
+        db.close()
+    logger.info("Aegis MCP Server stopped")
+
 
 app = FastAPI(
     title="Aegis Insight MCP Server",
     description="Epistemic context endpoints for AI systems",
-    version="1.0.0"
+    version="1.1.0",
+    lifespan=lifespan
 )
 
 # CORS for cross-origin requests
@@ -380,27 +637,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Detection service
-detection: Optional[DetectionService] = None
-
-
-@app.on_event("startup")
-async def startup():
-    """Initialize connections on startup"""
-    global db, detection
-    db = DatabaseManager()
-    detection = DetectionService(db)
-    logger.info("Aegis MCP Server started")
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    """Cleanup on shutdown"""
-    global db
-    if db:
-        db.close()
-    logger.info("Aegis MCP Server stopped")
 
 
 # =============================================================================
@@ -427,21 +663,21 @@ async def health_check():
 async def analyze_topic(request: AnalyzeTopicRequest):
     """
     Analyze a topic for suppression and coordination patterns.
-    
-    Use for pre-retrieval epistemic check: "Should I be careful with this topic?"
-    
-    Returns detection scores and pattern indicators.
+
+    Uses TWO-STAGE PIPELINE:
+    1. Semantic search via /api/pattern-search (GPU embeddings)
+    2. Detection analysis with claim_ids for full coverage
     """
     start_time = time.time()
-    
+
     try:
-        # Fetch claims
-        claims = detection.get_claims_for_topic(
+        # TWO-STAGE PIPELINE: Get claims via semantic search
+        claims, claim_ids = detection.get_claims_for_topic(
             topic=request.topic,
             domain=request.domain,
             max_claims=request.max_claims
         )
-        
+
         if not claims:
             return JSONResponse(
                 status_code=404,
@@ -459,14 +695,27 @@ async def analyze_topic(request: AnalyzeTopicRequest):
                     "query_ms": int((time.time() - start_time) * 1000)
                 }
             )
-        
-        # Run detection
-        suppression = detection.detect_suppression(claims, request.profile)
-        coordination = detection.detect_coordination(claims)
-        anomaly = detection.detect_anomaly(claims)
-        
+
+        # Run detection WITH claim_ids for proper semantic coverage
+        suppression = detection.detect_suppression(
+            claims,
+            profile=request.profile,
+            claim_ids=claim_ids,
+            topic=request.topic
+        )
+        coordination = detection.detect_coordination(
+            claims,
+            claim_ids=claim_ids,
+            topic=request.topic
+        )
+        anomaly = detection.detect_anomaly(
+            claims,
+            claim_ids=claim_ids,
+            topic=request.topic
+        )
+
         query_ms = int((time.time() - start_time) * 1000)
-        
+
         # Build response based on detail level
         if request.detail == DetailLevel.abbreviated:
             # Fast, minimal response
@@ -479,12 +728,13 @@ async def analyze_topic(request: AnalyzeTopicRequest):
                 flags.append("evidence_avoidance")
             if coordination.get('temporal_clustering_detected'):
                 flags.append("temporal_clustering")
-            
+
             return {
                 "success": True,
                 "topic": request.topic,
                 "domain": request.domain,
                 "suppression_score": suppression['score'],
+                "suppression_level": suppression['level'],
                 "coordination_score": coordination['score'],
                 "anomaly_score": anomaly['score'],
                 "confidence": suppression['confidence'],
@@ -492,7 +742,7 @@ async def analyze_topic(request: AnalyzeTopicRequest):
                 "claim_count": len(claims),
                 "query_ms": query_ms
             }
-        
+
         elif request.detail == DetailLevel.standard:
             # Balanced response with signal breakdown
             return {
@@ -504,7 +754,7 @@ async def analyze_topic(request: AnalyzeTopicRequest):
                 "coordination_score": coordination['score'],
                 "anomaly_score": anomaly['score'],
                 "confidence": suppression['confidence'],
-                
+
                 "signals": {
                     "suppression": {
                         "meta_claim_density": suppression['signals'].get('meta_claim_density', {}),
@@ -512,34 +762,42 @@ async def analyze_topic(request: AnalyzeTopicRequest):
                         "evidence_avoidance": suppression['signals'].get('evidence_avoidance', {}),
                         "suppression_narrative": {
                             "score": suppression['signals'].get('suppression_narrative', {}).get('score', 0),
-                            "indicators_found": suppression['signals'].get('suppression_narrative', {}).get('indicators_found', 0)
+                            "indicators_found": suppression['signals'].get('suppression_narrative', {}).get(
+                                'indicators_found', 0)
                         }
                     },
                     "coordination": {
+                        "score": coordination['score'],
                         "temporal_clustering_detected": coordination.get('temporal_clustering_detected', False),
                         "language_similarity_avg": coordination.get('language_similarity_avg', 0),
                         "citation_cartel_detected": coordination.get('citation_cartel_detected', False)
                     },
                     "anomaly": {
+                        "score": anomaly['score'],
                         "cross_domain_patterns": anomaly.get('cross_domain_patterns', []),
                         "geographic_clustering": anomaly.get('geographic_clustering')
                     }
                 },
-                
-                "sample_claims": [
+
+                "indicators": suppression.get('indicators', []),
+
+                "claims": [
                     {
-                        "claim_id": c.get('claim_id'),
-                        "text": c.get('claim_text', '')[:200],
-                        "type": c.get('claim_type'),
-                        "source": c.get('source_file', '').split('/')[-1] if c.get('source_file') else None
+                        "claim_id": c.get('claim_id') or c.get('id'),
+                        "text": (c.get('claim_text') or c.get('text', ''))[:200],
+                        "type": c.get('claim_type') or c.get('type'),
+                        "confidence": c.get('confidence'),
+                        "source": (c.get('source_file') or c.get('source', '')).split('/')[-1] if (
+                                    c.get('source_file') or c.get('source')) else None,
+                        "domain": c.get('domain')
                     }
-                    for c in claims[:5]
+                    for c in claims
                 ],
-                
+
                 "claim_count": len(claims),
                 "query_ms": query_ms
             }
-        
+
         else:  # verbose
             # Full response with all details
             return {
@@ -551,33 +809,35 @@ async def analyze_topic(request: AnalyzeTopicRequest):
                 "coordination_score": coordination['score'],
                 "anomaly_score": anomaly['score'],
                 "confidence": suppression['confidence'],
-                
+
                 "signals": {
                     "suppression": suppression['signals'],
                     "coordination": coordination,
                     "anomaly": anomaly
                 },
-                
+
                 "indicators": suppression.get('indicators', []),
-                
+
                 "claims": [
                     {
-                        "claim_id": c.get('claim_id'),
-                        "text": c.get('claim_text'),
-                        "type": c.get('claim_type'),
+                        "claim_id": c.get('claim_id') or c.get('id'),
+                        "text": c.get('claim_text') or c.get('text'),
+                        "type": c.get('claim_type') or c.get('type'),
                         "confidence": c.get('confidence'),
-                        "source": c.get('source_file'),
+                        "source": c.get('source_file') or c.get('source'),
                         "domain": c.get('domain')
                     }
                     for c in claims
                 ],
-                
+
                 "claim_count": len(claims),
                 "query_ms": query_ms
             }
-    
+
     except Exception as e:
         logger.error(f"analyze_topic error: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={
@@ -693,13 +953,16 @@ async def get_perspectives(request: GetPerspectivesRequest):
     """
     Get clustered perspectives on a topic with representative claims.
     
+    ENHANCED VERSION: Uses semantic clustering via embeddings when available,
+    with intelligent fallback to source-based and type-based clustering.
+    
     Useful for multi-perspective synthesis and balanced response generation.
     """
     start_time = time.time()
     
     try:
-        # Get claims for topic
-        claims = detection.get_claims_for_topic(
+        # Get claims for topic via semantic search
+        claims, claim_ids = detection.get_claims_for_topic(
             topic=request.topic,
             domain=request.domain,
             max_claims=500
@@ -710,39 +973,52 @@ async def get_perspectives(request: GetPerspectivesRequest):
                 status_code=404,
                 content={
                     "success": False,
-                    "error": {"code": "TOPIC_NOT_FOUND", "message": "No claims found"},
+                    "error": {
+                        "code": "TOPIC_NOT_FOUND",
+                        "message": f"No claims found for topic: {request.topic}"
+                    },
                     "query_ms": int((time.time() - start_time) * 1000)
                 }
             )
         
-        # Simple clustering by claim type (MVP approach)
-        # Full implementation would use embedding-based HDBSCAN clustering
-        clusters = {}
+        # Use enhanced clustering service
+        if request.use_semantic_clustering:
+            raw_clusters = clustering.cluster_claims_semantically(claims, request.max_clusters)
+        else:
+            raw_clusters = clustering._fallback_type_clustering(claims, request.max_clusters)
         
-        # Cluster by type
-        for claim in claims:
-            claim_type = claim.get('claim_type', 'UNKNOWN')
-            if claim_type not in clusters:
-                clusters[claim_type] = {
-                    'label': f"{claim_type} claims",
-                    'claims': [],
-                    'size': 0
-                }
-            clusters[claim_type]['claims'].append(claim)
-            clusters[claim_type]['size'] += 1
-        
-        # Format response
+        # Format response with representative claims
         perspective_clusters = []
-        for cluster_type, cluster_data in list(clusters.items())[:request.max_clusters]:
-            representative = cluster_data['claims'][:request.claims_per_cluster]
+        for cluster in raw_clusters:
+            cluster_claims = cluster.get('claims', [])
+            representative = cluster_claims[:request.claims_per_cluster]
+            
+            # Calculate cluster statistics
+            meta_count = sum(1 for c in cluster_claims if (c.get('claim_type') or c.get('type')) == 'META')
+            primary_count = sum(1 for c in cluster_claims if (c.get('claim_type') or c.get('type')) == 'PRIMARY')
+            
+            # Get unique sources in cluster
+            sources = set()
+            for c in cluster_claims:
+                src = c.get('source_file') or c.get('source')
+                if src:
+                    sources.add(src.split('/')[-1])
+            
             perspective_clusters.append({
-                'label': cluster_data['label'],
-                'size': cluster_data['size'],
+                'label': cluster.get('label', 'Unnamed cluster'),
+                'size': cluster.get('size', len(cluster_claims)),
+                'meta_ratio': meta_count / len(cluster_claims) if cluster_claims else 0,
+                'primary_count': primary_count,
+                'source_count': len(sources),
+                'sources': list(sources)[:5],  # Top 5 sources
                 'representative_claims': [
                     {
-                        'claim_id': c.get('claim_id'),
-                        'text': c.get('claim_text', '')[:200],
-                        'source': c.get('source_file', '').split('/')[-1] if c.get('source_file') else None
+                        'claim_id': c.get('claim_id') or c.get('id'),
+                        'text': (c.get('claim_text') or c.get('text', ''))[:300],
+                        'type': c.get('claim_type') or c.get('type'),
+                        'confidence': c.get('confidence'),
+                        'source': (c.get('source_file') or c.get('source', '')).split('/')[-1] if (
+                            c.get('source_file') or c.get('source')) else None
                     }
                     for c in representative
                 ]
@@ -750,18 +1026,32 @@ async def get_perspectives(request: GetPerspectivesRequest):
         
         query_ms = int((time.time() - start_time) * 1000)
         
+        # Calculate overall perspective diversity
+        total_sources = set()
+        for cluster in perspective_clusters:
+            total_sources.update(cluster.get('sources', []))
+        
         return {
             "success": True,
             "topic": request.topic,
             "domain": request.domain,
             "cluster_count": len(perspective_clusters),
-            "clusters": perspective_clusters,
             "total_claims": len(claims),
+            "total_sources": len(total_sources),
+            "clustering_method": "semantic" if request.use_semantic_clustering else "type-based",
+            "clusters": perspective_clusters,
+            "perspective_diversity": {
+                "source_spread": len(total_sources),
+                "cluster_balance": min(c['size'] for c in perspective_clusters) / max(c['size'] for c in perspective_clusters) if perspective_clusters else 0,
+                "meta_presence": any(c['meta_ratio'] > 0.3 for c in perspective_clusters)
+            },
             "query_ms": query_ms
         }
     
     except Exception as e:
         logger.error(f"get_perspectives error: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={
@@ -977,7 +1267,7 @@ async def list_tools():
     return {
         "name": "aegis_insight",
         "description": "Query epistemic context for topics and sources. Detects suppression patterns, coordination signatures, and citation topology.",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "tools": [
             {
                 "name": "analyze_topic",
@@ -1004,14 +1294,15 @@ async def list_tools():
             },
             {
                 "name": "get_perspectives",
-                "description": "Get clustered perspectives on a topic with representative claims.",
+                "description": "Get clustered perspectives on a topic with representative claims. Uses semantic clustering for meaningful perspective separation.",
                 "endpoint": "/mcp/get_perspectives",
                 "method": "POST",
                 "parameters": {
-                    "topic": {"type": "string", "required": True},
+                    "topic": {"type": "string", "required": True, "description": "Topic to analyze"},
                     "domain": {"type": "string", "required": False},
-                    "max_clusters": {"type": "integer", "required": False, "default": 5},
-                    "claims_per_cluster": {"type": "integer", "required": False, "default": 5}
+                    "max_clusters": {"type": "integer", "required": False, "default": 5, "description": "Maximum perspective clusters (2-10)"},
+                    "claims_per_cluster": {"type": "integer", "required": False, "default": 5, "description": "Representative claims per cluster (1-20)"},
+                    "use_semantic_clustering": {"type": "boolean", "required": False, "default": True, "description": "Use embedding-based clustering"}
                 }
             },
             {
@@ -1053,7 +1344,7 @@ def main():
     """Run the MCP server"""
     import uvicorn
     
-    port = int(os.getenv("MCP_PORT", "8100"))
+    port = int(os.getenv("MCP_PORT", "8101"))
     host = os.getenv("MCP_HOST", "0.0.0.0")
     
     logger.info(f"Starting Aegis MCP Server on {host}:{port}")

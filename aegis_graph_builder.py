@@ -550,7 +550,7 @@ Examples:
     )
     parser.add_argument('files', nargs='*', help='JSONL files to load')
     parser.add_argument('--dir', '-d', type=str, help='Directory containing *_extracted.jsonl files')
-    parser.add_argument('--neo4j-uri', default='os.environ.get("NEO4J_URI", "bolt://localhost:7687")', help='Neo4j URI')
+    parser.add_argument('--neo4j-uri', default=os.environ.get('NEO4J_URI', 'bolt://localhost:7687'), help='Neo4j URI')
     parser.add_argument('--neo4j-user', default='neo4j', help='Neo4j user')
     parser.add_argument('--neo4j-password', default='aegistrusted', help='Neo4j password')
     parser.add_argument('--enable-clustering', action='store_true', default=True,

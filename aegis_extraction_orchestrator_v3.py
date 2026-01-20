@@ -32,6 +32,7 @@ import time
 # Import extractors
 from aegis_coreference_resolver import CoreferenceResolver
 from aegis_entity_processor import EntityProcessor, NormalizedEntity
+import os
 
 # Import existing extractors (these should be in the path)
 try:
@@ -52,7 +53,7 @@ class ExtractionConfig:
     """Configuration for extraction pipeline."""
     
     # Ollama settings
-    ollama_url: str = "http://localhost:11434"
+    ollama_url: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
     primary_model: str = "mistral-nemo:12b"  # For most extraction
     large_model: str = "qwen2.5:72b"  # For complex tasks if available
     

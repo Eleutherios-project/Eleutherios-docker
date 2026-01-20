@@ -25,6 +25,7 @@ from datetime import datetime
 # Import our components
 from aegis_extraction_orchestrator_v3 import EnhancedExtractionOrchestrator as ExtractionOrchestrator, ExtractionConfig
 from aegis_graph_builder import GraphBuilderV2 as GraphBuilder
+import os
 
 
 def load_jsonl(jsonl_path: Path, max_chunks: int = None) -> List[Dict]:
@@ -134,7 +135,7 @@ def main():
     parser.add_argument('--checkpoint-dir', default='./checkpoints/mvp', help='Checkpoint directory')
     parser.add_argument('--batch-size', type=int, default=30, help='Batch size for processing')
     parser.add_argument('--checkpoint-every', type=int, default=100, help='Checkpoint frequency')
-    parser.add_argument('--ollama-url', default='http://localhost:11434', help='Ollama API URL')
+    parser.add_argument('--ollama-url', default=os.environ.get('OLLAMA_HOST', 'http://localhost:11434'), help='Ollama API URL')
     parser.add_argument('--model', default='mistral-nemo:12b', help='LLM model to use')
     
     # NEW: Embedding parameters

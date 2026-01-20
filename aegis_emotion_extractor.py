@@ -18,6 +18,7 @@ import json
 import logging
 from typing import Dict, List, Optional
 import requests
+import os
 
 
 class AegisEmotionExtractor:
@@ -52,7 +53,7 @@ class AegisEmotionExtractor:
     ]
     
     def __init__(self, 
-                 ollama_url: str = "http://localhost:11434",
+                 ollama_url: str = os.getenv("OLLAMA_HOST", "http://localhost:11434"),
                  model: str = "mistral-nemo:12b",
                  logger: Optional[logging.Logger] = None):
         """

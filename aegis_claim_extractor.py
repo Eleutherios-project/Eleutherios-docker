@@ -9,6 +9,7 @@ import logging
 import requests
 from typing import Dict, List, Optional
 import uuid
+import os
 
 class ClaimExtractor:
     """
@@ -24,7 +25,7 @@ class ClaimExtractor:
     }
     
     def __init__(self,
-                 ollama_url: str = "http://localhost:11434",
+                 ollama_url: str = os.getenv("OLLAMA_HOST", "http://localhost:11434"),
                  model: str = "qwen2.5:72b",
                  logger: Optional[logging.Logger] = None):
         

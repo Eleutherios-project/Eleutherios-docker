@@ -84,13 +84,14 @@ services:
       - POSTGRES_USER=aegis
       - POSTGRES_PASSWORD=aegis_trusted_2025
       # Ollama (on host machine)
-      - OLLAMA_HOST=http://host.docker.internal:11434
+      - OLLAMA_HOST=http://192.168.1.132:11434
       # Directories
       - DATA_DIR=/app/data
       - DEMO_DATA_DIR=/app/demo-data
       # First run behavior
       - SEED_ON_FIRST_RUN=true
       - ENABLE_MCP_SERVER=true
+      - MCP_PORT=8100
     volumes:
       # Persistent data
       - aegis_data:/app/data
@@ -100,13 +101,14 @@ services:
       - ./data/inbox:/app/data/inbox
       - ./data/processed:/app/data/processed
       - ./data/calibration_profiles:/app/data/calibration_profiles
+      - aegis_jobs:/root/.aegis
     depends_on:
       neo4j:
         condition: service_healthy
       postgres:
         condition: service_healthy
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "192.168.1.132:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/api/health/simple"]
       interval: 30s
@@ -142,3 +144,5 @@ volumes:
     name: aegis_logs
   aegis_hf_cache:
     name: aegis_hf_cache
+  aegis_jobs:
+    name: aegis_jobs

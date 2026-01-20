@@ -14,6 +14,7 @@ import requests
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass
 from enum import Enum
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class ExtractionConfig:
     mode: ExtractionMode = ExtractionMode.LLM_LARGE
     model_name: Optional[str] = None
     system_prompt: Optional[str] = None
-    ollama_url: str = "http://localhost:11434"
+    ollama_url: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
     confidence_threshold: float = 0.6
     max_claims_per_chunk: int = 20
     timeout_seconds: int = 300  # Increased from 120 to 300 (5 minutes) for 70B models
@@ -90,7 +91,7 @@ No markdown, no code fences, no explanation."""
 class OllamaClient:
     """Client for interacting with Ollama API"""
     
-    def __init__(self, base_url: str = "http://localhost:11434"):
+    def __init__(self, base_url: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")):
         self.base_url = base_url.rstrip('/')
     
     def is_available(self) -> bool:

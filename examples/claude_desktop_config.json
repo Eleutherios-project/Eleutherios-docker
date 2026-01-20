@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "aegis-insight": {
+      "url": "http://localhost:8001/mcp",
+      "transport": "http",
+      "metadata": {
+        "name": "Aegis Insight",
+        "description": "Epistemic analysis infrastructure for detecting suppression patterns, coordination signatures, and perspective clustering in document corpora",
+        "version": "1.1",
+        "documentation": "https://eleutherios.io"
+      }
+    }
+  }
+}

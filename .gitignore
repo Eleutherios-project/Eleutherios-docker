@@ -31,3 +31,17 @@ Thumbs.db
 
 # Docker
 *.tar
+
+# Backup files
+*.bak
+*.bak.*
+*.old
+*.backup
+
+# Backup directories  
+backups/
+
+# macOS artifacts
+.DS_Store
+**/.DS_Store
+**/._*

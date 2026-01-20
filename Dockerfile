@@ -34,6 +34,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     netcat-openbsd \
     postgresql-client \
+    poppler-utils \
+    tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python packages from builder

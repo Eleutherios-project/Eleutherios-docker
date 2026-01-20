@@ -8,6 +8,7 @@ import json
 import logging
 import requests
 from typing import Dict, Optional
+import os
 
 class TemporalExtractor:
     """
@@ -16,7 +17,7 @@ class TemporalExtractor:
     """
     
     def __init__(self,
-                 ollama_url: str = "http://localhost:11434",
+                 ollama_url: str = os.getenv("OLLAMA_HOST", "http://localhost:11434"),
                  model: str = "mistral-nemo:12b",
                  logger: Optional[logging.Logger] = None):
         

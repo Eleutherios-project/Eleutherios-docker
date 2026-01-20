@@ -18,6 +18,7 @@ from aegis_geographic_extractor import GeographicExtractor
 from aegis_citation_extractor import CitationExtractor
 from aegis_emotion_extractor import AegisEmotionExtractor as EmotionExtractor
 from aegis_authority_domain_analyzer import AuthorityDomainAnalyzer
+import os
 
 # Optional: Coreference resolution for better entity linking
 try:
@@ -89,7 +90,7 @@ class ExtractionOrchestrator:
     """
     
     def __init__(self,
-                 ollama_url: str = "http://localhost:11434",
+                 ollama_url: str = os.getenv("OLLAMA_HOST", "http://localhost:11434"),
                  model: str = "mistral-nemo:12b",
                  checkpoint_dir: str = "./checkpoints/mvp",
                  batch_size: int = 30,

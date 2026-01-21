@@ -97,7 +97,7 @@ from aegis_config import (Config, NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD,
 # LEGACY: POSTGRES_USER = "aegis"
 # LEGACY: POSTGRES_PASSWORD = "aegis_trusted_2025"
 
-OLLAMA_URL = "http://localhost:11434"
+OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_SECONDARY_URL = "http://localhost:11435"
 
 # Supported file types
@@ -1648,7 +1648,6 @@ class ImportWizard:
                     '--model', self.state.model,
                     '--job-id', job_id,
                     '--checkpoint-dir', str(checkpoint_dir),
-                    '--batch-size', str(DEFAULT_BATCH_SIZE),
                     '--skip-graph'  # Graph built in separate phase
                 ]
 

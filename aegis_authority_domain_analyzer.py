@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Aegis Insight - Authority Domain Analyzer (FIXED)
@@ -51,11 +52,11 @@ class AuthorityDomainAnalyzer:
     }
     
     def __init__(self,
-                 ollama_url: str = "http://localhost:11434",
+                 ollama_url: str = None,
                  model: str = "mistral-nemo:12b",
                  logger: Optional[logging.Logger] = None):
         
-        self.ollama_url = ollama_url
+        self.ollama_url = ollama_url or os.getenv('OLLAMA_HOST', 'http://localhost:11434')
         self.model = model
         self.logger = logger or logging.getLogger(__name__)
     

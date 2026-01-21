@@ -35,7 +35,7 @@ class PatternSearchLLM:
         postgres_db: str = "aegis_insight",
         postgres_user: str = "aegis",
         postgres_password: str = "aegis_trusted_2025",
-        ollama_url: str = "http://localhost:11434",
+        ollama_url: str = os.getenv("OLLAMA_HOST", "http://localhost:11434"),
         ollama_model: str = "mistral-nemo:12b"
     ):
         """Initialize connections"""
@@ -83,6 +83,7 @@ class PatternSearchLLM:
         
         RETURN 
             elementId(c) as id,
+            c.claim_id as claim_id,
             c.claim_text as text,
             c.confidence as confidence,
             c.claim_type as claim_type,
@@ -123,6 +124,7 @@ class PatternSearchLLM:
         
         RETURN 
             elementId(c) as id,
+            c.claim_id as claim_id,
             c.claim_text as text,
             c.confidence as confidence,
             c.claim_type as claim_type,
@@ -195,6 +197,7 @@ class PatternSearchLLM:
             element_id = element_id_map.get(claim_id, claim_id)  # Use element ID if found
             claims.append({
                 'id': element_id,
+                'claim_id': claim_id,  # Original claim_id for API lookups
                 'text': row[1],
                 'confidence': row[2],
                 'claim_type': row[3],

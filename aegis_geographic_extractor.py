@@ -11,6 +11,7 @@ from typing import Dict, Optional
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
 import time
+import os
 
 class GeographicExtractor:
     """
@@ -19,7 +20,7 @@ class GeographicExtractor:
     """
     
     def __init__(self,
-                 ollama_url: str = "http://localhost:11434",
+                 ollama_url: str = os.getenv("OLLAMA_HOST", "http://localhost:11434"),
                  model: str = "mistral-nemo:12b",
                  logger: Optional[logging.Logger] = None):
         

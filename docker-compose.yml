@@ -91,6 +91,7 @@ services:
       # First run behavior
       - SEED_ON_FIRST_RUN=true
       - ENABLE_MCP_SERVER=true
+      - MCP_PORT=8100
     volumes:
       # Persistent data
       - aegis_data:/app/data
@@ -100,6 +101,7 @@ services:
       - ./data/inbox:/app/data/inbox
       - ./data/processed:/app/data/processed
       - ./data/calibration_profiles:/app/data/calibration_profiles
+      - aegis_jobs:/root/.aegis
     depends_on:
       neo4j:
         condition: service_healthy
@@ -142,3 +144,5 @@ volumes:
     name: aegis_logs
   aegis_hf_cache:
     name: aegis_hf_cache
+  aegis_jobs:
+    name: aegis_jobs

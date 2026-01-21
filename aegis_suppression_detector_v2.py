@@ -49,7 +49,7 @@ try:
 except ImportError:
     LLM_AVAILABLE = False
 
-OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
+OLLAMA_URL = os.environ.get('OLLAMA_HOST', 'http://localhost:11434')
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'mistral-nemo:12b')
 
 # =====================================================

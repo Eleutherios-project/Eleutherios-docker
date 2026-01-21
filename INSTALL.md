@@ -1,7 +1,7 @@
 # Aegis Insight - Installation Guide
 
-**Version:** 1.0  
-**Last Updated:** December 2024
+**Version:** 1.1  
+**Last Updated:** January 2025
 
 ---
 
@@ -10,20 +10,20 @@
 ### Prerequisites
 
 You need these installed:
-- **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop)
+- **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop) (**must be running before you start**)
 - **Ollama** - [Download](https://ollama.com/download) (for AI features)
 
 ### Installation
 
 ```bash
-# 1. Clone or download
-git clone https://github.com/Eleutherios-project/Eleutherios.git
-cd Eleutherios
+# 1. Clone the repository
+git clone https://github.com/Eleutherios-project/Eleutherios-docker.git
+cd Eleutherios-docker
 
-# 2. Start services
+# 2. Start Docker Desktop first, then start services
 docker-compose up -d
 
-# 3. Wait for initialization (~2 minutes first time)
+# 3. Wait for initialization (~2-5 minutes first time)
 docker-compose logs -f api
 # (Press Ctrl+C when you see "Uvicorn running")
 
@@ -31,7 +31,7 @@ docker-compose logs -f api
 open http://localhost:8001
 ```
 
-That's it! The demo data loads automatically.
+That's it! The demo data loads automatically on first run.
 
 ---
 
@@ -39,12 +39,14 @@ That's it! The demo data loads automatically.
 
 ### Step 1: Install Docker Desktop
 
+> **Important:** Docker Desktop must be running before you execute any docker commands.
+
 1. Download Docker Desktop for your OS:
-   - [Windows](https://docs.docker.com/desktop/install/windows-install/)
+   - [Windows](https://docs.docker.com/desktop/install/windows-install/) (requires WSL2 - see [Windows Setup Guide](WINDOWS_SETUP_GUIDE.md))
    - [Mac](https://docs.docker.com/desktop/install/mac-install/)
    - [Linux](https://docs.docker.com/desktop/install/linux-install/)
 
-2. Install and start Docker Desktop
+2. Install and **start Docker Desktop**
 
 3. Verify installation:
    ```bash
@@ -60,28 +62,38 @@ Ollama provides local AI processing for document analysis.
 
 2. Install and start Ollama
 
-3. Pull the required model:
+3. Pull the required models:
    ```bash
+   # Primary extraction model (~7GB)
    ollama pull mistral-nemo:12b
+   
+   # Embedding model for semantic search (~274MB)
+   ollama pull nomic-embed-text
    ```
 
 4. Verify:
    ```bash
    ollama list
+   # Should show both mistral-nemo:12b and nomic-embed-text
    ```
 
-**Note:** Aegis Insight works without Ollama, but document import and queries requires it.
+**Note:** Aegis Insight works without Ollama for browsing/searching, but document import and LLM-powered queries require it.
 
 ### Step 3: Download Aegis Insight
 
-**Option A: Git Clone**
+**Option A: Git Clone (Recommended)**
 ```bash
-git clone https://github.com/Eleutherios-project/Eleutherios.git
-cd Eleutherios
+git clone https://github.com/Eleutherios-project/Eleutherios-docker.git
+cd Eleutherios-docker
 ```
 
+> **For specific versions:** Check out a release branch:
+> ```bash
+> git checkout release/v1.1
+> ```
+
 **Option B: Download ZIP**
-1. Go to [github.com/Eleutherios-project/Eleutherios](https://github.com/Eleutherios-project/Eleutherios)
+1. Go to [github.com/Eleutherios-project/Eleutherios-docker](https://github.com/Eleutherios-project/Eleutherios-docker)
 2. Click "Code" → "Download ZIP"
 3. Extract to a folder
 4. Open terminal in that folder
@@ -89,19 +101,21 @@ cd Eleutherios
 ### Step 4: Start Services
 
 ```bash
+# Make sure Docker Desktop is running first!
+
 # Start all services
 docker-compose up -d
 
 # Watch the startup logs
-docker-compose logs -f
+docker-compose logs -f api
 
 # (Press Ctrl+C when initialization completes)
 ```
 
-First startup takes up to 10 minutes to:
+First startup takes 5-10 minutes to:
 - Download container images
 - Initialize databases
-- Load demo data
+- Load demo data (~38,000 claims)
 
 ### Step 5: Access the Interface
 
@@ -124,31 +138,47 @@ You should see:
 |---------|--------|
 | aegis-neo4j | Up (healthy) |
 | aegis-postgres | Up (healthy) |
-| aegis-api | Up |
+| aegis-api | Up (healthy) |
 
 ### Check Demo Data Loaded
 
 1. Open http://localhost:8001
 2. Go to the "Detection" tab
-3. Enter a search term (try "war" or "prohibition")
-4. You should see results
+3. Search for "Thomas Paine"
+4. Run suppression detection
+5. Expected: ~0.83 CRITICAL score
+
+### Test API Health
+
+```bash
+curl http://localhost:8001/api/health
+```
 
 ### Troubleshooting
 
+**"Cannot connect to Docker daemon"**
+- Docker Desktop isn't running. Launch it and wait for it to fully start.
+
 **Container won't start?**
 ```bash
-# Check logs
+# Check logs for specific service
 docker-compose logs neo4j
 docker-compose logs postgres
 docker-compose logs api
+```
 
-# Common fix: restart Docker Desktop
+**Containers persist after `docker-compose down`?**
+```bash
+# Stop by name if they were started with different config
+docker stop aegis-api aegis-postgres aegis-neo4j
+docker rm aegis-api aegis-postgres aegis-neo4j
 ```
 
 **Can't connect to http://localhost:8001?**
 ```bash
 # Check port isn't in use
-lsof -i :8001
+lsof -i :8001  # Mac/Linux
+netstat -ano | findstr :8001  # Windows
 
 # Check container is running
 docker-compose ps
@@ -160,7 +190,7 @@ docker-compose ps
 docker-compose exec neo4j cypher-shell -u neo4j -p aegistrusted \
   "MATCH (n) RETURN count(n)"
 
-# Should return a number > 0
+# Should return ~60,000+
 ```
 
 ---
@@ -171,7 +201,8 @@ docker-compose exec neo4j cypher-shell -u neo4j -p aegistrusted \
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| API | 8001 | Web interface and REST API |
+| Web UI / API | 8001 | Main interface and REST API |
+| MCP Server | 8100 | Claude Desktop integration |
 | Neo4j Browser | 7474 | Database admin (optional) |
 | Neo4j Bolt | 7687 | Database connection |
 | PostgreSQL | 5432 | Embeddings database |
@@ -194,11 +225,10 @@ docker-compose up -d
 
 ### Connecting to Ollama
 
-**If Ollama runs on the same machine:**
-- Linux/Mac: Uses `host.docker.internal` automatically
-- Windows: Uses `host.docker.internal` automatically
+**Default (same machine):**
+Uses `host.docker.internal` automatically on Windows/Mac/Linux.
 
-**If Ollama runs on a different machine:**
+**Remote Ollama server:**
 Edit `docker-compose.yml`:
 ```yaml
 services:
@@ -206,6 +236,39 @@ services:
     environment:
       - OLLAMA_HOST=http://192.168.1.100:11434
 ```
+
+---
+
+## Claude Desktop Integration (MCP)
+
+Aegis includes an MCP server for Claude Desktop integration.
+
+### Quick Setup
+
+1. Find your Claude config file:
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+   - Linux: `~/.config/Claude/claude_desktop_config.json`
+
+2. Add the Aegis server (or copy from `examples/claude_desktop_config.json`):
+   ```json
+   {
+     "mcpServers": {
+       "aegis-insight": {
+         "url": "http://localhost:8001/mcp",
+         "transport": "http"
+       }
+     }
+   }
+   ```
+
+3. Restart Claude Desktop
+
+4. Try asking Claude:
+   - "What domains are available in Aegis?"
+   - "Analyze Thomas Paine for suppression patterns"
+
+For detailed configuration options, see [docs/CLAUDE_DESKTOP_MCP_CONFIG.md](docs/CLAUDE_DESKTOP_MCP_CONFIG.md).
 
 ---
 
@@ -220,13 +283,12 @@ services:
 ### Batch Import (10+ PDFs)
 
 1. Copy PDFs to `./data/inbox/`
-2. Run import:
+2. Run import wizard:
    ```bash
-   docker-compose exec api python3 /app/aegis_import_wizard.py \
-     
+   docker-compose exec api python3 /app/aegis_import_wizard.py
    ```
+
 Follow the wizard instructions for GPU parallelism and resuming partially completed jobs.
-See [Data Loading Guide](DATA_LOADING_GUIDE.md) for details.
 
 ---
 
@@ -281,18 +343,6 @@ docker-compose up -d
 
 ---
 
-## Getting Help
-
-- **GitHub Issues:** [Report a bug](https://github.com/Eleutherios-project/Eleutherios/issues)
-- **Documentation:** See `/docs` folder
-- **API Reference:** http://localhost:8001/docs (when running)
-
----
-
-## License
-
-MIT License - See [LICENSE](LICENSE) file.
-
 ## Configuration Options
 
 ### Demo Data Loading
@@ -312,10 +362,7 @@ To completely reset and start with a clean system:
 # Stop and remove all data
 docker-compose down -v
 
-# Set SEED_ON_FIRST_RUN=false in docker-compose.yml if you want empty databases
-# Or leave true to reload demo data
-
-# Start fresh
+# Start fresh (will reload demo data by default)
 docker-compose up -d
 ```
 
@@ -327,3 +374,18 @@ These directories are mounted from your host for easy access:
 - `./data/processed/` - Processed files are moved here
 - `./data/calibration_profiles/` - Detection calibration profiles
 
+---
+
+## Getting Help
+
+- **GitHub Issues:** [Report a bug](https://github.com/Eleutherios-project/Eleutherios-docker/issues)
+- **Documentation:** See `docs/` folder
+- **MCP Integration:** See `docs/CLAUDE_DESKTOP_MCP_CONFIG.md`
+- **Windows Guide:** See `WINDOWS_SETUP_GUIDE.md`
+- **API Reference:** http://localhost:8001/docs (when running)
+
+---
+
+## License
+
+MIT License - See [LICENSE](LICENSE) file.

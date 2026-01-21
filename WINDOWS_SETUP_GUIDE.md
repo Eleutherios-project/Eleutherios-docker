@@ -158,13 +158,17 @@ ollama serve &
 
 (Press Enter if the prompt doesn't return immediately)
 
-### 4.3 Download Required Model
+### 4.3 Download Required Models
 
 ```bash
+# Primary extraction model (~7GB)
 ollama pull mistral-nemo:12b
+
+# Embedding model for semantic search (~274MB)
+ollama pull nomic-embed-text
 ```
 
-This downloads ~7GB. Takes 5-15 minutes depending on your internet.
+This downloads ~7.3GB total. Takes 5-15 minutes depending on your internet.
 
 ### 4.4 Verify Ollama
 
@@ -172,7 +176,7 @@ This downloads ~7GB. Takes 5-15 minutes depending on your internet.
 ollama list
 ```
 
-You should see `mistral-nemo:12b` listed.
+You should see both `mistral-nemo:12b` and `nomic-embed-text` listed.
 
 **Tip:** To make Ollama start automatically, add to your `~/.bashrc`:
 ```bash
@@ -183,36 +187,40 @@ echo 'pgrep -x "ollama" > /dev/null || ollama serve &' >> ~/.bashrc
 
 ## Step 5: Install Aegis Insight
 
-### 5.1 Clone the Repository
+### 5.1 Start Docker Desktop
+
+**Important:** Docker Desktop must be running before you proceed. Launch it from the Start menu and wait for it to fully initialize (the whale icon in the system tray should stop animating).
+
+### 5.2 Clone the Repository
+
+In Ubuntu (WSL) terminal:
 
 ```bash
 cd ~
-git clone https://github.com/Eleutherios-project/Eleutherios.git
-cd Eleutherios
+git clone https://github.com/Eleutherios-project/Eleutherios-docker.git
+cd Eleutherios-docker
 ```
+
+> **Note:** If you're installing a specific release version, checkout that branch:
+> ```bash
+> git checkout release/v1.1
+> ```
+> Check the [releases page](https://github.com/Eleutherios-project/Eleutherios-docker/releases) for available versions.
 
 **Alternative: Manual Download**
 
 If you have the files on a USB drive or downloaded as ZIP:
-1. Copy to `C:\Users\<yourname>\Eleutherios`
+1. Copy to `C:\Users\<yourname>\Eleutherios-docker`
 2. In WSL:
    ```bash
-   cd /mnt/c/Users/<yourname>/Eleutherios
+   cd /mnt/c/Users/<yourname>/Eleutherios-docker
    ```
 
-### 5.2 Make Scripts Executable
+### 5.3 Make Scripts Executable
 
 ```bash
 chmod +x setup.sh docker-entrypoint.sh
 ```
-
-### 5.3 Run Setup
-
-```bash
-./setup.sh
-```
-
-This loads demo data (~460MB) into Docker volumes. Takes 1-2 minutes.
 
 ### 5.4 Start Aegis Insight
 
@@ -220,7 +228,10 @@ This loads demo data (~460MB) into Docker volumes. Takes 1-2 minutes.
 docker-compose up -d
 ```
 
-First run builds the Docker image (~10-15 minutes).
+First run:
+- Builds the Docker image (~5-10 minutes)
+- Downloads database images
+- Seeds demo data (~2-3 minutes)
 
 ### 5.5 Watch Progress
 
@@ -230,8 +241,16 @@ docker-compose logs -f api
 
 Wait until you see:
 ```
-[INFO] All systems ready!
-[INFO] Web UI: http://localhost:8001
+==================================================
+  Starting API Server
+==================================================
+
+  Web Interface:  http://localhost:8001
+  API Docs:       http://localhost:8001/docs
+  Health Check:   http://localhost:8001/api/health
+  MCP Server:     http://localhost:8100
+
+==================================================
 ```
 
 Press `Ctrl+C` to exit log view (doesn't stop the server).
@@ -249,11 +268,58 @@ Open your web browser and go to:
 - `Remember the Maine`
 - `Thomas Paine`
 
+### Try Suppression Detection:
+1. Click the **Detect** tab
+2. Enter `Thomas Paine` in the search box
+3. Click **Detect Suppression**
+4. Expected result: ~0.83 CRITICAL suppression score
+
 ### Demo Data Included:
-- 38,469 claims from 81 documents
-- 17,584 entities (people, places, organizations)
+- ~38,000 claims from 80+ documents
+- ~17,000 entities (people, places, organizations)
 - Full semantic search capabilities
 - Detection algorithms ready to use
+
+---
+
+## Step 7: Connect Claude Desktop (Optional)
+
+Aegis Insight includes an MCP (Model Context Protocol) server that allows Claude Desktop to query your knowledge graph directly.
+
+### 7.1 Locate Claude Config File
+
+The Claude Desktop config file location:
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+### 7.2 Add Aegis Configuration
+
+Copy the example config from the repository:
+
+```bash
+cat examples/claude_desktop_config.json
+```
+
+Or manually add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "aegis-insight": {
+      "url": "http://localhost:8001/mcp",
+      "transport": "http"
+    }
+  }
+}
+```
+
+### 7.3 Restart Claude Desktop
+
+After saving the config, restart Claude Desktop. You can then ask Claude:
+- "What domains are available in Aegis?"
+- "Analyze Thomas Paine for suppression patterns"
+- "Show me perspectives on the Business Plot"
+
+For detailed MCP configuration options, see [docs/CLAUDE_DESKTOP_MCP_CONFIG.md](docs/CLAUDE_DESKTOP_MCP_CONFIG.md).
 
 ---
 
@@ -262,7 +328,7 @@ Open your web browser and go to:
 ### Start/Stop Services
 
 ```bash
-# Start
+# Start (Docker Desktop must be running first!)
 docker-compose up -d
 
 # Stop
@@ -282,7 +348,7 @@ docker-compose restart
 docker-compose ps
 
 # System health
-curl http://localhost:8001/api/system/status
+curl http://localhost:8001/api/health
 ```
 
 ### Start Ollama (if not running)
@@ -296,7 +362,6 @@ ollama serve &
 ```bash
 # Remove all data and start fresh
 docker-compose down -v
-./setup.sh
 docker-compose up -d
 ```
 
@@ -306,7 +371,7 @@ docker-compose up -d
 
 ### "Cannot connect to Docker daemon"
 
-Docker Desktop isn't running. Launch it from Start menu.
+Docker Desktop isn't running. Launch it from the Start menu and wait for it to fully start before running docker commands.
 
 ### "Permission denied" errors
 
@@ -314,11 +379,46 @@ Docker Desktop isn't running. Launch it from Start menu.
 chmod +x setup.sh docker-entrypoint.sh
 ```
 
+If moving/renaming directories fails, close any programs that might have files open (VS Code, Explorer, Docker Desktop) and try again.
+
 ### Ollama not accessible
 
 Start Ollama manually:
 ```bash
 ollama serve &
+```
+
+Verify it's running:
+```bash
+ollama list
+```
+
+### Ollama not reachable from Docker containers
+
+If extraction or import fails with "connection refused to Ollama":
+
+1. Verify Ollama is running on the host:
+   ```bash
+   ollama list
+   curl http://localhost:11434/api/tags
+   ```
+
+2. Test connectivity from inside the container:
+   ```bash
+   docker exec aegis-api curl http://host.docker.internal:11434/api/tags
+   ```
+
+3. If the above fails, check that Docker Desktop's WSL integration is enabled (Settings → Resources → WSL Integration)
+
+4. If using a custom Ollama location or remote server, edit `OLLAMA_HOST` in `docker-compose.yml`
+
+### Containers won't stop with docker-compose down
+
+If containers were started with a different configuration or project name:
+```bash
+# Stop by container name
+docker stop aegis-api aegis-postgres aegis-neo4j
+docker rm aegis-api aegis-postgres aegis-neo4j
 ```
 
 ### GPU not detected
@@ -333,7 +433,7 @@ ollama serve &
 - Close unnecessary Windows applications
 - GPU acceleration helps significantly with LLM operations
 
-### Port 8001 already in use
+### Port already in use
 
 ```bash
 # Find what's using the port
@@ -344,32 +444,40 @@ sudo lsof -i :8001
 #   - "8002:8001"
 ```
 
+### WSL filesystem permission issues
+
+When working with files across the Windows/WSL boundary, you may encounter permission errors. Solutions:
+- Clone repositories inside WSL home (`~/`) instead of `/mnt/c/...`
+- Or use a fresh directory name if you can't rename/move existing ones
+
 ---
 
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Windows Host                          │
-│  ┌─────────────────────────────────────────────────────┐│
-│  │                    WSL2 (Ubuntu)                    ││
-│  │  ┌─────────────────────────────────────────────────┐││
-│  │  │              Docker Containers                  │││
-│  │  │  ┌─────────┐ ┌─────────┐ ┌─────────────────┐   │││
-│  │  │  │  Neo4j  │ │PostgreSQL│ │   Aegis API    │   │││
-│  │  │  │ :7474   │ │  :5432  │ │    :8001       │   │││
-│  │  │  └─────────┘ └─────────┘ └─────────────────┘   │││
-│  │  └─────────────────────────────────────────────────┘││
-│  │  ┌─────────────────────────────────────────────────┐││
-│  │  │              Ollama (host)  :11434              │││
-│  │  │              mistral-nemo:12b                   │││
-│  │  └─────────────────────────────────────────────────┘││
-│  └─────────────────────────────────────────────────────┘│
-│                         │                                │
-│                    ┌────┴────┐                          │
-│                    │NVIDIA GPU│ (optional)              │
-│                    └─────────┘                          │
-└─────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                      Windows Host                           |
+|  +-------------------------------------------------------+  |
+|  |                    WSL2 (Ubuntu)                      |  |
+|  |  +-------------------------------------------------+  |  |
+|  |  |              Docker Containers                  |  |  |
+|  |  |  +---------+  +----------+  +-----------------+ |  |  |
+|  |  |  |  Neo4j  |  |PostgreSQL|  |    Aegis API    | |  |  |
+|  |  |  | :7474   |  |  :5432   |  | :8001 / :8100   | |  |  |
+|  |  |  | :7687   |  |          |  |                 | |  |  |
+|  |  |  +---------+  +----------+  +-----------------+ |  |  |
+|  |  +-----------------------|-------------------------+  |  |
+|  |                          | host.docker.internal       |  |
+|  |  +-----------------------v-------------------------+  |  |
+|  |  |              Ollama (host)  :11434              |  |  |
+|  |  |       mistral-nemo:12b, nomic-embed-text        |  |  |
+|  |  +-------------------------------------------------+  |  |
+|  +-------------------------------------------------------+  |
+|                           |                                 |
+|                    +------v------+                          |
+|                    | NVIDIA GPU  | (optional)               |
+|                    +-------------+                          |
++-------------------------------------------------------------+
 ```
 
 ---
@@ -378,14 +486,15 @@ sudo lsof -i :8001
 
 1. **Explore the Demo Data** - Search, run detection algorithms, examine the graph
 2. **Load Your Own Documents** - Use the Data Loading tab to import PDFs
-3. **Read the User Manual** - Comprehensive documentation in the repo
-4. **Join the Community** - GitHub Issues for questions and feedback
+3. **Connect Claude Desktop** - See [docs/CLAUDE_DESKTOP_MCP_CONFIG.md](docs/CLAUDE_DESKTOP_MCP_CONFIG.md)
+4. **Read the Documentation** - Full docs in the `docs/` folder
+5. **API Reference** - Visit http://localhost:8001/docs when running
 
 ---
 
 ## Support
 
-- **GitHub Issues:** https://github.com/Eleutherios-project/Eleutherios/issues
+- **GitHub Issues:** https://github.com/Eleutherios-project/Eleutherios-docker/issues
 - **Documentation:** See `docs/` folder in repository
 
 ---

@@ -84,7 +84,7 @@ services:
       - POSTGRES_USER=aegis
       - POSTGRES_PASSWORD=aegis_trusted_2025
       # Ollama (on host machine)
-      - OLLAMA_HOST=http://192.168.1.132:11434
+      - OLLAMA_HOST=http://host.docker.internal:11434
       # Directories
       - DATA_DIR=/app/data
       - DEMO_DATA_DIR=/app/demo-data
@@ -108,7 +108,7 @@ services:
       postgres:
         condition: service_healthy
     extra_hosts:
-      - "192.168.1.132:host-gateway"
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/api/health/simple"]
       interval: 30s

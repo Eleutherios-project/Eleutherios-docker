@@ -28,11 +28,14 @@ from datetime import datetime
 from dataclasses import dataclass, asdict
 import sys
 import time
+import os
+
+# Trace mode for debugging extraction failures
+AEGIS_TRACE = os.environ.get("AEGIS_TRACE", "").lower() == "true"
 
 # Import extractors
 from aegis_coreference_resolver import CoreferenceResolver
 from aegis_entity_processor import EntityProcessor, NormalizedEntity
-import os
 
 # Import existing extractors (these should be in the path)
 try:
@@ -53,7 +56,7 @@ class ExtractionConfig:
     """Configuration for extraction pipeline."""
     
     # Ollama settings
-    ollama_url: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    ollama_url: str = "http://localhost:11434"
     primary_model: str = "mistral-nemo:12b"  # For most extraction
     large_model: str = "qwen2.5:72b"  # For complex tasks if available
     
@@ -445,10 +448,19 @@ class EnhancedExtractionOrchestrator:
         
         return claim
 
-    def _call_ollama_batch(self, prompt: str) -> str:
+    def _call_ollama_batch(self, prompt: str, extractor_name: str = "unknown") -> str:
         """Make a batch extraction call to Ollama."""
         import requests
 
+        # Trace mode: log full prompt
+        if AEGIS_TRACE:
+            self.logger.info(f"\n{'='*80}")
+            self.logger.info(f"=== TRACE [{extractor_name}] PROMPT ===")
+            self.logger.info(f"{'='*80}")
+            self.logger.info(prompt)
+            self.logger.info(f"{'='*80}\n")
+
+        start_time = time.time()
         response = requests.post(
             f"{self.config.ollama_url}/api/generate",
             json={
@@ -462,24 +474,54 @@ class EnhancedExtractionOrchestrator:
             },
             timeout=300
         )
+        elapsed = time.time() - start_time
 
         if response.status_code == 200:
-            return response.json().get('response', '')
+            result = response.json().get('response', '')
+
+            # Trace mode: log full response
+            if AEGIS_TRACE:
+                self.logger.info(f"\n{'='*80}")
+                self.logger.info(f"=== TRACE [{extractor_name}] RESPONSE ({elapsed:.2f}s) ===")
+                self.logger.info(f"{'='*80}")
+                self.logger.info(result)
+                self.logger.info(f"{'='*80}\n")
+
+            return result
         else:
             raise Exception(f"Ollama batch call failed: {response.status_code}")
 
-    def _parse_batch_response(self, response: str, expected_count: int, default: Dict) -> List[Dict]:
+    def _parse_batch_response(self, response: str, expected_count: int, default: Dict, extractor_name: str = "unknown") -> List[Dict]:
         """Parse JSON array response from batch extraction."""
         import re
 
-        json_match = re.search(r'\[[\s\S]*\]', response)
+        # Step 1: Strip markdown code fences if present
+        cleaned = response.strip()
+        if '```json' in cleaned:
+            # Extract content between ```json and ```
+            parts = cleaned.split('```json', 1)
+            if len(parts) > 1:
+                cleaned = parts[1].split('```', 1)[0]
+        elif '```' in cleaned:
+            # Generic code fence
+            parts = cleaned.split('```', 1)
+            if len(parts) > 1:
+                cleaned = parts[1].split('```', 1)[0]
 
-        if not json_match:
+        # Step 2: Find JSON array using bracket balancing
+        json_str = self._extract_json_array(cleaned)
+        
+        if not json_str:
             self.logger.warning(f"No JSON array found in batch response")
+            if AEGIS_TRACE:
+                self.logger.info(f"=== TRACE [{extractor_name}] PARSE FAILURE: No JSON array ===")
+                self.logger.info(f"Raw response (first 500 chars): {response[:500]}")
             return [default.copy() for _ in range(expected_count)]
 
         try:
-            results = json.loads(json_match.group())
+            if AEGIS_TRACE:
+                self.logger.info(f"=== TRACE [{extractor_name}] EXTRACTED JSON ({len(json_str)} chars) ===")
+            results = json.loads(json_str)
 
             if len(results) != expected_count:
                 self.logger.warning(f"Batch response had {len(results)} items, expected {expected_count}")
@@ -487,11 +529,52 @@ class EnhancedExtractionOrchestrator:
                     results.append(default.copy())
                 results = results[:expected_count]
 
+            if AEGIS_TRACE:
+                self.logger.info(f"=== TRACE [{extractor_name}] PARSE SUCCESS: {len(results)} items ===")
             return results
 
         except json.JSONDecodeError as e:
             self.logger.warning(f"Failed to parse batch response: {e}")
+            if AEGIS_TRACE:
+                self.logger.info(f"=== TRACE [{extractor_name}] JSON DECODE ERROR ===")
+                self.logger.info(f"Error: {e}")
+                self.logger.info(f"JSON attempted (first 1000 chars): {json_str[:1000]}")
             return [default.copy() for _ in range(expected_count)]
+
+    def _extract_json_array(self, text: str) -> Optional[str]:
+        """Extract first balanced JSON array from text."""
+        start_idx = text.find('[')
+        if start_idx == -1:
+            return None
+        
+        bracket_count = 0
+        in_string = False
+        escape_next = False
+        
+        for i, char in enumerate(text[start_idx:], start_idx):
+            if escape_next:
+                escape_next = False
+                continue
+            if char == '\\':
+                escape_next = True
+                continue
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if char == '[':
+                bracket_count += 1
+            elif char == ']':
+                bracket_count -= 1
+                if bracket_count == 0:
+                    return text[start_idx:i+1]
+        
+        # Fallback: return from [ to last ]
+        end_idx = text.rfind(']')
+        if end_idx > start_idx:
+            return text[start_idx:end_idx+1]
+        return None
 
     def _batch_extract_temporal(self, claim_texts: List[str], context: Dict) -> List[Dict]:
         """Extract temporal data from multiple claims in one LLM call."""
@@ -507,9 +590,9 @@ CLAIMS:
         batch_prompt += """
 Return ONLY valid JSON: [{"absolute_dates": [{"date": "YYYY-MM-DD", "confidence": 0.9}], "relative_dates": [], "temporal_markers": []}, ...]"""
 
-        response = self._call_ollama_batch(batch_prompt)
+        response = self._call_ollama_batch(batch_prompt, "temporal")
         return self._parse_batch_response(response, n, default={'absolute_dates': [], 'relative_dates': [],
-                                                                'temporal_markers': []})
+                                                                'temporal_markers': []}, extractor_name="temporal")
 
     def _batch_extract_geographic(self, claim_texts: List[str], context: Dict) -> List[Dict]:
         """Extract geographic data from multiple claims in one LLM call."""
@@ -525,8 +608,8 @@ CLAIMS:
         batch_prompt += """
 Return ONLY valid JSON: [{"locations": [{"name": "Place", "type": "city"}], "cultural_context": []}, ...]"""
 
-        response = self._call_ollama_batch(batch_prompt)
-        return self._parse_batch_response(response, n, default={'locations': [], 'cultural_context': []})
+        response = self._call_ollama_batch(batch_prompt, "geographic")
+        return self._parse_batch_response(response, n, default={'locations': [], 'cultural_context': []}, extractor_name="geographic")
 
     def _batch_extract_citation(self, claim_texts: List[str], context: Dict) -> List[Dict]:
         """Extract citation data from multiple claims in one LLM call."""
@@ -542,8 +625,8 @@ CLAIMS:
         batch_prompt += """
 Return ONLY valid JSON: [{"cites_other_work": true, "attribution_chain": ["source1"]}, ...]"""
 
-        response = self._call_ollama_batch(batch_prompt)
-        return self._parse_batch_response(response, n, default={'cites_other_work': False, 'attribution_chain': []})
+        response = self._call_ollama_batch(batch_prompt, "citation")
+        return self._parse_batch_response(response, n, default={'cites_other_work': False, 'attribution_chain': []}, extractor_name="citation")
 
     def _batch_extract_emotion(self, claim_texts: List[str], context: Dict) -> List[Dict]:
         """Extract emotional content from multiple claims in one LLM call."""
@@ -559,10 +642,10 @@ CLAIMS:
         batch_prompt += """
 Return ONLY valid JSON: [{"primary_sentiment": "fear|anger|hope|neutral", "emotional_intensity": 0.0-1.0, "fact_to_emotion_ratio": 0.0-1.0, "manipulation_indicators": {"appeals_to_fear": false, "appeals_to_anger": false, "urgency_without_evidence": false, "loaded_language": false}}, ...]"""
 
-        response = self._call_ollama_batch(batch_prompt)
+        response = self._call_ollama_batch(batch_prompt, "emotion")
         return self._parse_batch_response(response, n,
                                           default={'primary_sentiment': 'neutral', 'emotional_intensity': 0.0,
-                                                   'fact_to_emotion_ratio': 0.5, 'manipulation_indicators': {}})
+                                                   'fact_to_emotion_ratio': 0.5, 'manipulation_indicators': {}}, extractor_name="emotion")
 
     def _batch_extract_authority(self, claim_texts: List[str], context: Dict) -> List[Dict]:
         """Extract authority/domain analysis from multiple claims in one LLM call."""
@@ -578,10 +661,64 @@ CLAIMS:
         batch_prompt += """
 Return ONLY valid JSON: [{"claim_domain": "medicine|politics|military|science|other", "authority_type": "credential|position|celebrity|anonymous", "domain_match": 0.0-1.0, "domain_drift": false}, ...]"""
 
-        response = self._call_ollama_batch(batch_prompt)
+        response = self._call_ollama_batch(batch_prompt, "authority")
         return self._parse_batch_response(response, n,
                                           default={'claim_domain': 'unknown', 'authority_type': 'unknown',
-                                                   'domain_match': 0.5, 'domain_drift': False})
+                                                   'domain_match': 0.5, 'domain_drift': False}, extractor_name="authority")
+
+    def _mega_batch_extract_all(self, claim_texts: List[str], context: Dict) -> Optional[List[Dict]]:
+        """
+        Extract ALL dimensions (temporal, geographic, citation, emotion, authority) 
+        in a SINGLE LLM call. Returns None if parsing fails (triggering fallback).
+        """
+        n = len(claim_texts)
+        if n == 0:
+            return []
+        
+        mega_prompt = f"""Analyze these {n} claims and extract ALL of the following for EACH claim:
+1. TEMPORAL: dates, time references
+2. GEOGRAPHIC: locations mentioned  
+3. CITATION: sources cited or referenced
+4. EMOTION: sentiment and manipulation signals
+5. AUTHORITY: expertise domain and credibility signals
+
+Return a JSON array with exactly {n} objects. Each object must have all 5 keys.
+
+CLAIMS:
+"""
+        for i, text in enumerate(claim_texts):
+            mega_prompt += f"[{i + 1}]: {text}\n"
+        
+        mega_prompt += """
+Return ONLY valid JSON (no explanation, no markdown):
+[
+  {
+    "temporal": {"absolute_dates": [], "relative_dates": [], "temporal_markers": []},
+    "geographic": {"locations": [], "cultural_context": []},
+    "citation": {"cites_other_work": false, "attribution_chain": []},
+    "emotion": {"primary_sentiment": "neutral", "emotional_intensity": 0.0, "fact_to_emotion_ratio": 0.5, "manipulation_indicators": {"appeals_to_fear": false, "appeals_to_anger": false, "urgency_without_evidence": false, "loaded_language": false}},
+    "authority": {"claim_domain": "other", "authority_type": "anonymous", "domain_match": 0.5, "domain_drift": false}
+  }
+]"""
+        
+        try:
+            response = self._call_ollama_batch(mega_prompt, "mega_all")
+            results = self._parse_batch_response(response, n, default=None, extractor_name="mega_all")
+            
+            # Validate structure - each result must have all 5 keys
+            if results and all(r is not None and isinstance(r, dict) and 
+                              all(k in r for k in ['temporal', 'geographic', 'citation', 'emotion', 'authority']) 
+                              for r in results):
+                if AEGIS_TRACE:
+                    self.logger.info(f"=== TRACE [mega_all] VALIDATION SUCCESS ===")
+                return results
+            else:
+                if AEGIS_TRACE:
+                    self.logger.info(f"=== TRACE [mega_all] VALIDATION FAILED - missing keys ===")
+                return None
+        except Exception as e:
+            self.logger.warning(f"Mega-batch extraction failed: {e}, falling back to individual extractors")
+            return None
 
     def _enrich_claims_batch(self, claims: List[Dict], context: Dict, document_date: Optional[str] = None) -> List[
         Dict]:
@@ -593,6 +730,46 @@ Return ONLY valid JSON: [{"claim_domain": "medicine|politics|military|science|ot
 
         claim_texts = [c.get('claim_text', '') for c in claims]
         n = len(claims)
+
+        # Try mega-prompt first (1 LLM call instead of 5)
+        mega_results = self._mega_batch_extract_all(claim_texts, context)
+        
+        if mega_results:
+            # Mega-prompt succeeded - unpack results
+            for i, claim in enumerate(claims):
+                if i < len(mega_results) and mega_results[i]:
+                    mr = mega_results[i]
+                    claim['temporal_data'] = mr.get('temporal', {'absolute_dates': [], 'relative_dates': [], 'temporal_markers': []})
+                    claim['geographic_data'] = mr.get('geographic', {'locations': [], 'cultural_context': []})
+                    claim['citation_data'] = mr.get('citation', {'cites_other_work': False, 'attribution_chain': []})
+                    claim['emotional_data'] = mr.get('emotion', {'primary_sentiment': 'neutral', 'emotional_intensity': 0.0, 'fact_to_emotion_ratio': 0.5, 'manipulation_indicators': {}})
+                    claim['authority_data'] = mr.get('authority', {'claim_domain': 'unknown', 'authority_type': 'unknown', 'domain_match': 0.5, 'domain_drift': False})
+                else:
+                    # Use defaults for this claim
+                    claim['temporal_data'] = {'absolute_dates': [], 'relative_dates': [], 'temporal_markers': []}
+                    claim['geographic_data'] = {'locations': [], 'cultural_context': []}
+                    claim['citation_data'] = {'cites_other_work': False, 'attribution_chain': []}
+                    claim['emotional_data'] = {'primary_sentiment': 'neutral', 'emotional_intensity': 0.0, 'fact_to_emotion_ratio': 0.5, 'manipulation_indicators': {}}
+                    claim['authority_data'] = {'claim_domain': 'unknown', 'authority_type': 'unknown', 'domain_match': 0.5, 'domain_drift': False}
+                
+                # Apply document_date fallback for temporal
+                if document_date and not claim['temporal_data'].get('absolute_dates'):
+                    claim['temporal_data']['soft_date'] = {
+                        'date': document_date,
+                        'source': 'document_section',
+                        'confidence': 0.8,
+                        'type': 'inferred'
+                    }
+                    claim['temporal_data']['absolute_dates'] = [{
+                        'date': document_date,
+                        'confidence': 0.8,
+                        'type': 'document_context',
+                        'context': 'Date from document section header'
+                    }]
+            return claims
+
+        # Fallback: individual extractors (5 LLM calls)
+        self.logger.info("Mega-prompt failed, using fallback: individual extractors")
 
         # Batch extract all dimensions
         temporal_results = self._batch_extract_temporal(claim_texts, context)
@@ -760,6 +937,10 @@ Return ONLY valid JSON: [{"claim_domain": "medicine|politics|military|science|ot
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
+import os
+
+# Trace mode for debugging extraction failures
+AEGIS_TRACE = os.environ.get("AEGIS_TRACE", "").lower() == "true"
 
 
 def warmup_ollama(url: str, model: str, logger) -> bool:
